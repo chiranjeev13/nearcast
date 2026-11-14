@@ -4,3 +4,4 @@ dist
 *.log
 scripts/
 .vercel
+web/public/llms-full.txt

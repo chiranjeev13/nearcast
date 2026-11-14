@@ -1,0 +1,32 @@
+# Nearcast
+
+> Nearcast is a scripting language for NEAR. You write what should happen onchain in a few readable lines; Nearcast simulates every step against live chain state, shows exactly what will be signed, then runs it from your NEAR wallet and resumes where it stopped if anything fails. Through NEAR Chain Signatures and NEAR Intents, one NEAR account's script also acts on EVM chains (Base, Ethereum, Arbitrum, Optimism, Polygon, BNB Chain), Bitcoin and Solana.
+
+Example: pay a team on three chains from one NEAR account.
+
+```
+load chainsig
+
+assert @chainsig:balance(base "payroll" USDC) >= 1e6 "Base payroll wallet needs 1 USDC"
+
+chainsig:on base "payroll" (
+  exec @token(USDC) "transfer(address,uint256)" 0xcC50098040cdD7F65f198f3EDF5baB02bC3dfa10 1e6
+)
+chainsig:transfer solana "payroll" 8xXETPXGab2fEyqhaeGeUkxxFXhGkC5wo8ndNzTikcZj 0.01
+chainsig:transfer bitcoin "payroll" tb1qsstasqk8t7qu0d9ywr7khf3nug2jyaszpkrl4d 0.00001
+```
+
+## Docs
+
+- [Full language reference](https://nearcast-phi.vercel.app/llms-full.txt): every command, helper, option, chain and token, with example scripts. Read this before writing a Nearcast script.
+- [README](https://github.com/chiranjeev13/nearcast/blob/main/README.md): what Nearcast is, how a run works, safety, limits.
+
+## App
+
+- [Nearcast web app](https://nearcast-phi.vercel.app): editor with autocomplete and docs, simulate, then run with a NEAR wallet (Meteor, HOT, MyNearWallet, Intear, MetaMask).
+- [Source code](https://github.com/chiranjeev13/nearcast): TypeScript; also a CLI (`nearcast plan | run | resume | docs | ui`).
+
+## Optional
+
+- Modules: std (built in: transfer, call, batch, seq, as), token, nft, account, stake, meta, chainsig, intents.
+- NEAR Intents runs on mainnet only; Chain Signatures works on testnet and mainnet.

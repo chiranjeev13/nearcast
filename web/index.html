@@ -7,6 +7,30 @@
     <title>nearcast</title>
     <meta name="description" content="Nearcast is a scripting language for NEAR: readable scripts, simulated before you sign, that reach Base, Solana and Bitcoin." />
     <meta name="theme-color" content="#0b0c0f" />
+    <link rel="canonical" href="https://nearcast-phi.vercel.app/" />
+    <link rel="alternate" type="text/markdown" title="LLM summary" href="/llms.txt" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="nearcast" />
+    <meta property="og:title" content="Nearcast: a scripting language for NEAR" />
+    <meta property="og:description" content="Write what should happen onchain in a few readable lines. Nearcast simulates every step, then runs it from your NEAR wallet, on NEAR and on any chain NEAR can sign for." />
+    <meta property="og:url" content="https://nearcast-phi.vercel.app/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Nearcast: a scripting language for NEAR" />
+    <meta name="twitter:description" content="Readable scripts, simulated before you sign, that run on NEAR, Base, Solana, Bitcoin and more from one NEAR wallet." />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Nearcast",
+        "description": "A scripting language for NEAR. Readable scripts are simulated against live chain state, then run from a NEAR wallet, reaching EVM chains, Bitcoin and Solana through NEAR Chain Signatures and NEAR Intents.",
+        "url": "https://nearcast-phi.vercel.app/",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Web",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "codeRepository": "https://github.com/chiranjeev13/nearcast",
+        "license": "https://opensource.org/licenses/MIT"
+      }
+    </script>
     <link rel="icon" type="image/svg+xml" href="/src/assets/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,6 +38,18 @@
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <h1>Nearcast: a scripting language for NEAR</h1>
+      <p>Write what should happen onchain in a few readable lines. Nearcast simulates every step against live chain state, shows exactly what will be signed, then runs it from your NEAR wallet, and resumes where it stopped if anything fails. Through NEAR Chain Signatures and NEAR Intents, one NEAR script acts on EVM chains, Bitcoin and Solana.</p>
+      <pre>load chainsig
+
+chainsig:on base "payroll" (
+  exec @token(USDC) "transfer(address,uint256)" 0xcC50098040cdD7F65f198f3EDF5baB02bC3dfa10 1e6
+)
+chainsig:transfer solana "payroll" 8xXETPXGab2fEyqhaeGeUkxxFXhGkC5wo8ndNzTikcZj 0.01
+chainsig:transfer bitcoin "payroll" tb1qsstasqk8t7qu0d9ywr7khf3nug2jyaszpkrl4d 0.00001</pre>
+      <p>Language reference: <a href="/llms-full.txt">llms-full.txt</a>. Summary: <a href="/llms.txt">llms.txt</a>. Source: <a href="https://github.com/chiranjeev13/nearcast">github.com/chiranjeev13/nearcast</a>. This app needs JavaScript.</p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
