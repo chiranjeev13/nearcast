@@ -167,9 +167,9 @@ function HeroDemo() {
 }
 
 const FEATURES = [
-  { title: "Write it like a note", body: "Transfers, swaps and contract calls on several chains, in a few readable lines. The editor suggests every command, token and chain as you type." },
-  { title: "See it before you sign", body: "Every run starts as a simulation. Balances are checked, gas is estimated and each step is labeled by risk before anything is signed." },
-  { title: "Pick up where it stopped", body: "Each step is saved before the next one starts. After a crash, resume from the checkpoint and nothing is sent twice." },
+  { title: "Readable", body: "Transfers, swaps, staking and contract calls in lines anyone can review. The editor suggests every command, token and chain as you type." },
+  { title: "Simulated first", body: "Every run starts as a simulation. Balances are checked, gas is estimated and each step is labeled by risk before anything is signed." },
+  { title: "Resumable", body: "Each step is saved before the next one starts. After a crash, resume from the checkpoint and nothing is sent twice." },
 ];
 
 const CHAINS = ["NEAR", "Ethereum", "Base", "Arbitrum", "Optimism", "Polygon", "BNB Chain", "Bitcoin", "Solana"];
@@ -223,15 +223,15 @@ export function Landing({ onOpen }: { onOpen: () => void }) {
         <section className="relative mx-auto max-w-[1180px] px-[max(16px,4vw)] pt-[clamp(48px,9vw,120px)] pb-[clamp(56px,8vw,112px)] grid gap-[clamp(40px,5vw,72px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)] items-center">
           <div className="flex flex-col gap-[clamp(20px,2.4vw,30px)] min-w-0">
             <h1 style={{ ...rise(1), fontSize: "clamp(40px, 5.6vw, 72px)" }} className="m-0 leading-[1.03] font-semibold tracking-[-0.035em] text-balance">
-              Script every chain from one{" "}
+              A scripting language{" "}
               <span className="relative whitespace-nowrap">
-                NEAR account.
+                for NEAR.
                 <span aria-hidden="true" className="absolute left-0 right-[0.4em] -bottom-[0.08em] h-[3px] rounded-full" style={{ background: `linear-gradient(90deg, ${GREEN}, rgba(57,255,20,0))` }} />
               </span>
             </h1>
             <p style={{ ...rise(2), fontSize: "clamp(16px, 1.35vw, 19px)" }} className="m-0 max-w-[540px] leading-[1.6] text-[#a9aeb8]">
-              Nearcast turns cross-chain work into a short, readable script. Pay on NEAR, move funds on Base, send Bitcoin or
-              swap through NEAR Intents.
+              Write what should happen onchain in a few readable lines. Nearcast simulates every step, then runs it from
+              your NEAR wallet, on NEAR and on Base, Solana and Bitcoin.
             </p>
             <div style={rise(3)} className="flex flex-wrap items-center gap-3">
               <PrimaryButton onClick={onOpen}>Open Editor</PrimaryButton>
@@ -248,10 +248,10 @@ export function Landing({ onOpen }: { onOpen: () => void }) {
         <section id="how" className="relative border-t border-white/[0.06]">
           <div className="mx-auto max-w-[1180px] px-[max(16px,4vw)] py-[clamp(56px,8vw,104px)] flex flex-col gap-[clamp(36px,5vw,60px)]">
             <div className="max-w-[660px] flex flex-col gap-4">
-              <h2 className="m-0 font-semibold tracking-[-0.025em] text-balance" style={{ fontSize: "clamp(28px, 3.2vw, 40px)" }}>One account, many chains</h2>
+              <h2 className="m-0 font-semibold tracking-[-0.025em] text-balance" style={{ fontSize: "clamp(28px, 3.2vw, 40px)" }}>One script, every chain</h2>
               <p className="m-0 text-[clamp(15px,1.25vw,17px)] leading-[1.65] text-[#a9aeb8]">
-                Your NEAR account controls an address on every other chain through NEAR Chain Signatures. No extra keys and no
-                bridges to babysit: Nearcast plans each step, your wallet approves it, and the run is tracked until it lands.
+                NEAR signs for other chains through Chain Signatures and moves assets through NEAR Intents, so a NEAR script
+                can pay on Base, Solana and Bitcoin. No extra keys, no bridges to babysit.
               </p>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
