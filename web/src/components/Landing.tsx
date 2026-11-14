@@ -222,10 +222,6 @@ export function Landing({ onOpen }: { onOpen: () => void }) {
 
         <section className="relative mx-auto max-w-[1180px] px-[max(16px,4vw)] pt-[clamp(48px,9vw,120px)] pb-[clamp(56px,8vw,112px)] grid gap-[clamp(40px,5vw,72px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)] items-center">
           <div className="flex flex-col gap-[clamp(20px,2.4vw,30px)] min-w-0">
-            <div style={rise(0)} className="self-start inline-flex items-center gap-2 h-8 pl-1.5 pr-3 rounded-full border border-white/[0.09] bg-white/[0.03] text-[13px] text-[#c9cdd4]">
-              <span className="inline-flex"><Mark size={20} /></span>
-              Built on NEAR Chain Signatures
-            </div>
             <h1 style={{ ...rise(1), fontSize: "clamp(40px, 5.6vw, 72px)" }} className="m-0 leading-[1.03] font-semibold tracking-[-0.035em] text-balance">
               Script every chain from one{" "}
               <span className="relative whitespace-nowrap">
@@ -270,11 +266,14 @@ export function Landing({ onOpen }: { onOpen: () => void }) {
             </div>
             <div className="flex flex-col gap-3">
               <div className="text-[13px] text-[#6f7580]">Works on</div>
-              <div className="flex flex-wrap gap-2">
-                {CHAINS.map((c) => (
-                  <span key={c} className="h-9 px-3.5 inline-flex items-center rounded-full border border-white/[0.08] text-[14px] text-[#d9dce1]">{c}</span>
+              <div className="text-[clamp(16px,1.4vw,19px)] leading-[1.9] text-[#e6e8ec]">
+                {CHAINS.map((c, i) => (
+                  <span key={c}>
+                    {c}
+                    {i < CHAINS.length - 1 && <span className="text-[#3a3f48] mx-2.5">/</span>}
+                  </span>
                 ))}
-                <span className="h-9 px-3.5 inline-flex items-center rounded-full border border-[rgba(57,255,20,0.45)] text-[14px]" style={{ color: GREEN }}>+ NEAR Intents swaps</span>
+                <span className="text-[#a9aeb8]"> and swaps through NEAR Intents</span>
               </div>
             </div>
           </div>
