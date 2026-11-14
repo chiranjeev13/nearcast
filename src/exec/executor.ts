@@ -61,15 +61,10 @@ function ed(sig: any): Uint8Array {
   return Uint8Array.from(bytes);
 }
 
-/** True for a value shaped like an MPC signature (ECDSA or EdDSA). */
-function isSignature(v: any): boolean {
-  return !!v && typeof v === "object" && ((v.big_r?.affine_point && v.s?.scalar) || (Array.isArray(v.signature) && v.signature.length === 64));
-}
-
-/** Sign-request actions with a late payload filled in (only action `at`, when given). */
-function withPayload(actions: NearAction[], payloadHex: string, at?: number): NearAction[] {
-  return actions.map((a, i) => {
-    if (a.kind !== "call" || a.method !== "sign" || (at !== undefined && i !== at)) return a;
+/** Sign-request actions with a late payload filled in. */
+function withPayload(actions: NearAction[], payloadHex: string): NearAction[] {
+  return actions.map((a) => {
+    if (a.kind !== "call" || a.method !== "sign") return a;
     const req = (a.args as any).request;
     const key = Object.keys(req.payload_v2)[0];
     return { ...a, args: { request: { ...req, payload_v2: { [key]: payloadHex } } } };
@@ -193,16 +188,13 @@ export async function execute(cp: Checkpoint, env: Env, store: Store, opts: Exec
       if (action === "sign") {
         if (step.type === "near-tx") {
           let actions = step.actions;
-          const p = step.purpose;
-          const lates = p?.kind === "mpc-sign" ? (p.late ? [{ req: p, at: undefined as number | undefined }] : [])
-            : p?.kind === "mpc-sign-batch" ? p.signs.map((req, at) => ({ req, at: at as number | undefined })).filter((x) => x.req.late) : [];
-          for (const { req, at } of lates) {
-            const target = byId.get(req.forStep) as SolTxStep;
+          if (step.purpose?.late) {
+            const target = byId.get(step.purpose.forStep) as SolTxStep;
             const prepared = await env.sol.prepare(target);
             const payloadHex = Buffer.from(prepared.messageBase64, "base64").toString("hex");
             // Persist the message before asking for its signature: the signature is only useful with it.
             note(target, { prepared }, `prepared message (blockhash ${prepared.blockhash})`);
-            actions = withPayload(actions, payloadHex, at);
+            actions = withPayload(actions, payloadHex);
             log(`step ${n}: built ${target.chain.label} message with a fresh blockhash`);
           }
           if (env.near.canSign(step.sender)) {
@@ -303,48 +295,19 @@ export async function execute(cp: Checkpoint, env: Env, store: Store, opts: Exec
 
 /** Attach MPC signatures to a foreign-chain step. Each chain's finalize verifies before anything can be broadcast. */
 async function assemble(step: EvmTxStep | BtcTxStep | SolTxStep, cp: Checkpoint, env: Env): Promise<{ raw: string; hash: string }> {
-  /** The signature(s) a sign step returned: one, or every one from a batched request. */
-  const sigsOf = (id: string): any[] => {
+  const sigOf = (id: string): any => {
     const s = cp.state[id];
     if (s?.status !== "confirmed" || !s.result) throw new Error(`no MPC signature yet from step ${Number(id.slice(1))}`);
-    return Array.isArray(s.result) ? s.result : [s.result];
+    return s.result;
   };
-  /** Try candidates until one verifies: every finalize refuses a signature that is not for its transaction. */
-  const first = async <T>(cands: any[], use: (sig: any) => T | Promise<T>): Promise<T> => {
-    let err: unknown;
-    for (const c of cands) {
-      try {
-        return await use(c);
-      } catch (e) {
-        err = e;
-      }
-    }
-    throw err ?? new Error(`no MPC signature for step ${step.index + 1}`);
-  };
-  if (step.type === "evm-tx") return first(sigsOf(step.signedBy), (sig) => finalize(step, sig as MpcSignature));
+  if (step.type === "evm-tx") return finalize(step, sigOf(step.signedBy) as MpcSignature);
   if (step.type === "btc-tx") {
-    // Each input needs the signature over its own hash; with a batch, pick it among all returned.
-    const pools = step.signedBy.map((id) => sigsOf(id).filter((c) => c?.big_r));
-    const pick = (i: number, chosen: string[]): { raw: string; txid: string } => {
-      if (i === pools.length) return env.btc.finalize(step, chosen);
-      let err: unknown;
-      for (const c of pools[i]) {
-        try {
-          return pick(i + 1, [...chosen, rs(c)]);
-        } catch (e) {
-          err = e;
-        }
-      }
-      throw err ?? new Error(`no MPC signature for input ${i + 1} of step ${step.index + 1}`);
-    };
-    const { raw, txid } = pick(0, []);
+    const { raw, txid } = env.btc.finalize(step, step.signedBy.map((id) => rs(sigOf(id))));
     return { raw, hash: txid };
   }
   const prepared = cp.state[step.id]?.prepared;
   if (!prepared) throw new Error(`no prepared message for step ${step.index + 1}; its signature cannot be used`);
-  const sol = step;
-  const { raw, txid } = await first(sigsOf(step.signedBy).filter((c) => Array.isArray(c?.signature)), (sig) =>
-    env.sol.finalize(sol, prepared.messageBase64, ed(sig)));
+  const { raw, txid } = env.sol.finalize(step, prepared.messageBase64, ed(sigOf(step.signedBy)));
   return { raw, hash: txid };
 }
 
@@ -415,12 +378,7 @@ async function pollNear(step: NearTxStep, st: StepState, env: Env, o: PollOpts):
   let unknown = 0;
   for (let waited = 0; waited <= o.timeoutMs; waited += o.pollMs) {
     const out = await env.near.status(st.txHash!, step.sender);
-    if (out.state === "success" && step.purpose?.kind === "mpc-sign-batch") {
-      // Each sign request answers in its own receipt; wait until every one has.
-      const seen = new Map<string, unknown>();
-      for (const v of [...(out.values ?? []), out.value]) if (isSignature(v)) seen.set(JSON.stringify(v), v);
-      if (seen.size >= step.purpose.signs.length) return { kind: "confirmed", result: [...seen.values()], feePaid: out.tokensBurnt };
-    } else if (out.state === "success") return { kind: "confirmed", result: out.value, feePaid: out.tokensBurnt };
+    if (out.state === "success") return { kind: "confirmed", result: out.value, feePaid: out.tokensBurnt };
     if (out.state === "failure") return { kind: "failed", error: nearError(out.error), feePaid: out.tokensBurnt };
     // A wallet-sent transaction has no stored bytes or nonce: we can only wait for it.
     if (out.state === "unknown" && st.signedPayload && ++unknown >= o.grace) {

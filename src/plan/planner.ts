@@ -20,18 +20,15 @@ import {
   type NearAction,
   type NearTxStep,
   type Plan,
-  type SignRequest,
   type SolTxStep,
   type Step,
   type Value,
 } from "./types.js";
 
-type StepBaseFields = { id: string; index: number; source: { line: number; text: string }; description: string };
-
 type Scope =
   | { kind: "seq" }
   /** The receiver is given (`batch <receiver>`) or fixed by the first action (`batch ( ... )`). */
-  | { kind: "batch"; receiver?: string; actions: NearAction[]; parts: string[]; after: ((txStepId: string) => void)[]; signs: SignRequest[] }
+  | { kind: "batch"; receiver?: string; actions: NearAction[]; parts: string[]; after: ((txStepId: string) => void)[] }
   | { kind: "evm" }
   /** meta:relay / meta:sign: like a batch, but the receiver is fixed by the first action. */
   | { kind: "meta"; receiver?: string; actions: NearAction[]; parts: string[] };
@@ -97,8 +94,6 @@ export class PlanCtx implements EvalCtx {
   evm?: Derived;
 
   #scope: Scope = { kind: "seq" };
-  /** The batch being built, also while inside chainsig:on within it. */
-  #openBatch?: Extract<Scope, { kind: "batch" }>;
   #sender: string;
   #stmt!: Stmt;
   #txSeen = false;
@@ -234,41 +229,12 @@ export class PlanCtx implements EvalCtx {
     );
   }
 
-  /**
-   * Inside batch ( ... ): add the sign request to the batch's transaction. Its `forStep` is filled in
-   * once the foreign step exists (after the batch's transaction is built).
-   */
-  #queueSign(path: string, payloadHex: string, scheme: "secp256k1" | "ed25519", what: string, extra: { late?: boolean; input?: number } = {}): SignRequest {
-    const b = this.#openBatch!;
-    const signer = this.env.near.signerContract;
-    b.receiver ??= signer;
-    if (b.receiver !== signer) {
-      throw this.#err(`this batch already goes to ${b.receiver}; chain signatures go to ${signer}. Put chainsig commands in their own batch ( ... ).`);
-    }
-    const domain = scheme === "secp256k1" ? 0 : 1;
-    const key = scheme === "secp256k1" ? "Ecdsa" : "Eddsa";
-    b.actions.push({
-      kind: "call",
-      method: "sign",
-      args: { request: { payload_v2: { [key]: payloadHex }, path, domain_id: domain } },
-      deposit: SIGN_DEPOSIT,
-      gas: SIGN_GAS,
-      decoded: extra.late
-        ? `sign the ${what} with key path "${path}" (${scheme}); payload built right before signing`
-        : `sign the ${what}: payload 0x${payloadHex} with key path "${path}" (${scheme})`,
-    });
-    b.parts.push(what);
-    const req: SignRequest = { kind: "mpc-sign", forStep: "", path, payloadHex, scheme, ...extra };
-    b.signs.push(req);
-    return req;
-  }
-
   /** One EVM call becomes two steps: the MPC signature request on NEAR, then the EVM broadcast. */
   async evmCall(op: EvmOp, from?: Derived): Promise<void> {
     const src = from ?? this.evm;
     if (!src) throw this.#err('exec is only valid inside chainsig:on <chain> "<path>" ( ... )');
-    if (this.#scope.kind === "meta" || (this.#scope.kind === "batch" && !this.#openBatch)) {
-      throw this.#err("a transaction on another chain cannot be part of a meta transaction");
+    if (this.#scope.kind === "batch" || this.#scope.kind === "meta") {
+      throw this.#err("a transaction on another chain cannot be part of a NEAR batch or meta transaction");
     }
     const { chain, path, sender } = src;
     const key = `${chain.chainId}:${sender.toLowerCase()}`;
@@ -292,9 +258,9 @@ export class PlanCtx implements EvalCtx {
       }
     }
 
-    const gasLimit: bigint = gas;
-    const build = (base: StepBaseFields, signedBy: string): EvmTxStep => ({
-      ...base,
+    const signIndex = this.steps.length;
+    const evmStep: EvmTxStep = {
+      ...this.#base(op.description, signIndex + 1),
       type: "evm-tx",
       chain,
       sender,
@@ -306,22 +272,11 @@ export class PlanCtx implements EvalCtx {
       data: op.data,
       value: op.value,
       nonce,
-      gas: gasLimit,
+      gas,
       ...fees,
-      maxFee: gasLimit * fees.maxFeePerGas,
-      signedBy,
-    });
-    if (this.#openBatch) {
-      const req = this.#queueSign(path, signingHash(build(this.#base(op.description), "")).slice(2), "secp256k1", `${chain.label} transaction (nonce ${nonce})`);
-      this.afterTx((txId) => {
-        const step = build(this.#base(op.description), txId);
-        req.forStep = step.id;
-        this.steps.push(step);
-      });
-      return;
-    }
-    const signIndex = this.steps.length;
-    const evmStep = build(this.#base(op.description, signIndex + 1), `s${signIndex + 1}`);
+      maxFee: gas * fees.maxFeePerGas,
+      signedBy: `s${signIndex + 1}`,
+    };
     const payloadHex = signingHash(evmStep).slice(2);
     await this.#emitSign(evmStep.id, path, payloadHex, "secp256k1", `step ${signIndex + 2} (${chain.label} transaction, nonce ${nonce})`);
     this.steps.push(evmStep);
@@ -329,9 +284,7 @@ export class PlanCtx implements EvalCtx {
 
   /** Bitcoin payment: one MPC signature per input, then the broadcast. Inputs and fee pinned now. */
   async btcTransfer(chain: BtcChain, path: string, to: string, amount: bigint): Promise<void> {
-    if (this.#scope.kind !== "seq" && !(this.#scope.kind === "batch" && this.#openBatch)) {
-      throw this.#err("chainsig:transfer must be at the top level of the script or inside batch ( ... )");
-    }
+    if (this.#scope.kind !== "seq") throw this.#err("chainsig:transfer must be at the top level of the script");
     const { address, publicKey } = await this.env.btc.derive(this.#sender, path);
     if (this.#btcFrom.has(address)) {
       throw this.#err(`one Bitcoin payment per address per script: ${address} already pays in an earlier step (its change is not confirmed yet)`);
@@ -345,10 +298,11 @@ export class PlanCtx implements EvalCtx {
       this.checks.push({ level: "fail", description: `line ${this.line}: ${(e as Error).message}. Fund ${address} first.` });
       prep = { psbtHex: "", hashes: [], inputs: [], fee: 0n };
     }
+    const first = this.steps.length;
     const n = prep.hashes.length;
-    const what = `on ${chain.label}, send ${units(amount, 8)} BTC to ${to}`;
-    const build = (base: StepBaseFields, signedBy: string[]): BtcTxStep => ({
-      ...base,
+    const btcIndex = first + n;
+    const btc: BtcTxStep = {
+      ...this.#base(`on ${chain.label}, send ${units(amount, 8)} BTC to ${to}`, btcIndex),
       type: "btc-tx",
       chain,
       sender: address,
@@ -360,25 +314,13 @@ export class PlanCtx implements EvalCtx {
       maxFee: prep.fee,
       inputs: prep.inputs,
       psbtHex: prep.psbtHex,
-      hashes: prep!.hashes,
-      signedBy,
-    });
-    if (this.#openBatch) {
-      const reqs = prep.hashes.map((h, i) =>
-        this.#queueSign(path, h, "secp256k1", `${chain.label} payment${n > 1 ? `, input ${i + 1} of ${n}` : ""}`, { input: i }));
-      this.afterTx((txId) => {
-        const step = build(this.#base(what), reqs.map(() => txId));
-        for (const r of reqs) r.forStep = step.id;
-        this.steps.push(step);
-      });
-    } else {
-      const first = this.steps.length;
-      const btc = build(this.#base(what, first + n), prep.hashes.map((_, i) => `s${first + i + 1}`));
-      for (let i = 0; i < n; i++) {
-        await this.#emitSign(btc.id, path, prep.hashes[i], "secp256k1", `input ${i + 1} of ${n} of step ${first + n + 1} (${chain.label} payment)`, { input: i });
-      }
-      this.steps.push(btc);
+      hashes: prep.hashes,
+      signedBy: prep.hashes.map((_, i) => `s${first + i + 1}`),
+    };
+    for (let i = 0; i < n; i++) {
+      await this.#emitSign(btc.id, path, prep.hashes[i], "secp256k1", `input ${i + 1} of ${n} of step ${btcIndex + 1} (${chain.label} payment)`, { input: i });
     }
+    this.steps.push(btc);
     if (!prep.hashes.length) return;
     const have = await this.env.btc.balance(chain, address);
     this.checks.push({
@@ -389,13 +331,11 @@ export class PlanCtx implements EvalCtx {
 
   /** Solana transfer: the message is built right before signing, because blockhashes expire in about a minute. */
   async solTransfer(chain: SolChain, path: string, to: string, lamports: bigint): Promise<void> {
-    if (this.#scope.kind !== "seq" && !(this.#scope.kind === "batch" && this.#openBatch)) {
-      throw this.#err("chainsig:transfer must be at the top level of the script or inside batch ( ... )");
-    }
+    if (this.#scope.kind !== "seq") throw this.#err("chainsig:transfer must be at the top level of the script");
     const sender = await this.env.sol.derive(this.#sender, path);
-    const what = `on ${chain.label}, send ${units(lamports, 9)} SOL to ${to}`;
-    const build = (base: StepBaseFields, signedBy: string): SolTxStep => ({
-      ...base,
+    const signIndex = this.steps.length;
+    const sol: SolTxStep = {
+      ...this.#base(`on ${chain.label}, send ${units(lamports, 9)} SOL to ${to}`, signIndex + 1),
       type: "sol-tx",
       chain,
       sender,
@@ -403,22 +343,10 @@ export class PlanCtx implements EvalCtx {
       to,
       lamports,
       maxFee: 5000n,
-      signedBy,
-    });
-    const sol = build(this.#base(what), "");
-    if (this.#openBatch) {
-      const req = this.#queueSign(path, "", "ed25519", `${chain.label} transfer`, { late: true });
-      this.afterTx((txId) => {
-        const step = build(this.#base(what), txId);
-        req.forStep = step.id;
-        this.steps.push(step);
-      });
-    } else {
-      const signIndex = this.steps.length;
-      const step = build(this.#base(what, signIndex + 1), `s${signIndex + 1}`);
-      await this.#emitSign(step.id, path, "", "ed25519", `step ${signIndex + 2} (${chain.label} transfer)`, { late: true });
-      this.steps.push(step);
-    }
+      signedBy: `s${signIndex + 1}`,
+    };
+    await this.#emitSign(sol.id, path, "", "ed25519", `step ${signIndex + 2} (${chain.label} transfer)`, { late: true });
+    this.steps.push(sol);
     const [have, rent, toBal] = await Promise.all([
       this.env.sol.balance(chain, sender),
       this.env.sol.rentExempt(chain),
@@ -468,8 +396,8 @@ export class PlanCtx implements EvalCtx {
    * top level, or once the enclosing batch is emitted (its transaction does not exist yet).
    */
   afterTx(fn: (txStepId: string) => void): void {
-    const scope = this.#openBatch;
-    if (scope) {
+    const scope = this.#scope;
+    if (scope.kind === "batch") {
       const stmt = this.#stmt;
       scope.after.push((id) => {
         const outer = this.#stmt;
@@ -539,24 +467,11 @@ export class PlanCtx implements EvalCtx {
     if (this.#scope.kind !== "seq") {
       throw new ScriptError(`batch cannot be nested inside ${this.#scope.kind === "batch" ? "another batch" : this.#scope.kind === "meta" ? "a meta transaction" : "chainsig:on"}`, cmd.loc);
     }
-    const scope: Extract<Scope, { kind: "batch" }> = { kind: "batch", receiver, actions: [], parts: [], after: [], signs: [] };
-    this.#openBatch = scope;
-    try {
-      await this.block(cmd.block ?? [], scope);
-    } finally {
-      this.#openBatch = undefined;
-    }
+    const scope: Scope = { kind: "batch", receiver, actions: [], parts: [], after: [] };
+    await this.block(cmd.block ?? [], scope);
     this.#stmt = cmd;
     if (scope.actions.length === 0 || !scope.receiver) throw new ScriptError("batch is empty", cmd.loc);
-    const signs = scope.signs;
-    if (signs.length && signs.length !== scope.actions.length) {
-      throw new ScriptError("a batch with chain signatures can hold only chainsig commands (all its actions are signature requests)", cmd.loc);
-    }
-    const tx = signs.length
-      ? await this.#emitNear(this.#sender, scope.receiver, scope.actions,
-          `ask the MPC network for ${signs.length} signature${signs.length > 1 ? "s" : ""} in one transaction: ${scope.parts.join("; ")}`,
-          true, { kind: "mpc-sign-batch", signs })
-      : await this.#emitNear(this.#sender, scope.receiver, scope.actions, `atomic batch on ${scope.receiver}: ${scope.parts.join("; ")}`, true);
+    const tx = await this.#emitNear(this.#sender, scope.receiver, scope.actions, `atomic batch on ${scope.receiver}: ${scope.parts.join("; ")}`, true);
     for (const fn of scope.after) fn(tx.id);
   }
 

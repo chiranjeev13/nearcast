@@ -97,7 +97,7 @@ batch USDC_CONTRACT (
 
   it("rejects mixing that would hide non-atomicity", async () => {
     const e = fakeEnv();
-    await expect(plan('load chainsig\nbatch a.testnet (\n  chainsig:on base "t" (\n    exec 0x036CbD53842c5426634e7929541eC2318f3dCF7e "f()"\n  )\n)', e)).rejects.toThrow(/chain signatures go to/);
+    await expect(plan('load chainsig\nbatch a.testnet (\n  chainsig:on base "t" (\n  )\n)', e)).rejects.toThrow(/can never be atomic with a NEAR transaction/);
     await expect(plan("batch a.testnet (\n  seq (\n  )\n)", e)).rejects.toThrow(/seq cannot be used inside a batch/);
     await expect(plan('load chainsig\nchainsig:on base "t" (\n  call a.testnet m {}\n)', e)).rejects.toThrow(/line 3: NEAR commands are not allowed inside chainsig:on/);
     await expect(plan('exec 0x036CbD53842c5426634e7929541eC2318f3dCF7e "f()"', e)).rejects.toThrow(/unknown command "exec"/);

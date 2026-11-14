@@ -131,7 +131,7 @@ export const std: Module = {
     batch: {
       usage: "batch [<receiver>] ( ... )",
       summary: "One atomic transaction: every action inside goes to one receiver; all succeed or none do.",
-      details: "Without <receiver>, the first action decides it. Several intents:swap deposits from the same NEAR token fit in one batch, and so do chainsig commands (their signature requests become one transaction): one approval.",
+      details: "Without <receiver>, the first action decides it. Several intents:swap deposits from the same NEAR token fit in one batch: one approval.",
       example: "batch counter.testnet (\n  call counter.testnet increment\n  call counter.testnet increment\n)",
       block: true,
       chains: ["near"],

@@ -53,16 +53,6 @@ export const actionDeposit = (a: NearAction): bigint =>
     : a.kind === "delegate" ? a.actions.reduce((s, x) => s + actionDeposit(x), 0n)
     : 0n;
 
-export interface SignRequest {
-  kind: "mpc-sign";
-  forStep: string;
-  path: string;
-  payloadHex: string;
-  scheme: "secp256k1" | "ed25519";
-  late?: boolean;
-  input?: number;
-}
-
 export interface NearTxStep extends StepBase {
   type: "near-tx";
   chain: Chain & { kind: "near" };
@@ -79,10 +69,8 @@ export interface NearTxStep extends StepBase {
    * mpc-sign: asks the MPC network to sign another step's transaction.
    * `late`: the payload is built right before signing (Solana: blockhashes expire in about a minute),
    * so the action args hold a placeholder until then.
-   * mpc-sign-batch: several sign requests in one transaction (one wallet approval); `signs[i]` is
-   * action i. The step's result is every signature returned, in no particular order.
    */
-  purpose?: SignRequest | { kind: "mpc-sign-batch"; signs: SignRequest[] };
+  purpose?: { kind: "mpc-sign"; forStep: string; path: string; payloadHex: string; scheme: "secp256k1" | "ed25519"; late?: boolean; input?: number };
   /** True when the action list deletes the signing account. */
   deletesSender?: boolean;
 }
