@@ -239,7 +239,6 @@ export function Landing({ onOpen }: { onOpen: () => void }) {
                 How it works
               </a>
             </div>
-            <div style={rise(4)} className="text-[13px] text-[#6f7580]">Your wallet signs every step · testnet by default</div>
           </div>
           <div style={rise(2)} className="min-w-0">
             <HeroDemo />
