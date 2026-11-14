@@ -10,14 +10,30 @@ Write what you want to happen onchain in a few readable lines. Nearcast simulate
 # Payroll on three chains, from one NEAR account
 load chainsig
 
+set $alice 0xcC50098040cdD7F65f198f3EDF5baB02bC3dfa10
+set $bob   8xXETPXGab2fEyqhaeGeUkxxFXhGkC5wo8ndNzTikcZj
+set $carol tb1qsstasqk8t7qu0d9ywr7khf3nug2jyaszpkrl4d
+
+# Checks run before anything is signed
 assert @chainsig:balance(base "payroll" USDC) >= 1e6 "Base payroll wallet needs 1 USDC"
+assert @chainsig:balance(solana "payroll") > 0.02e9 "Solana payroll wallet needs 0.02 SOL"
+assert @chainsig:balance(bitcoin "payroll") > 5000 "Bitcoin payroll wallet needs 5000 sats"
+
+chainsig:on base "payroll" (
+  exec @token(USDC) "transfer(address,uint256)" $alice 1e6
+)
+chainsig:transfer solana "payroll" $bob 0.01
+chainsig:transfer bitcoin "payroll" $carol 0.00001
+```
+
+And settling USDC from NEAR onto two chains in one approval with NEAR Intents (mainnet):
+
+```
+load intents
 
 batch (
-  chainsig:on base "payroll" (
-    exec @token(USDC) "transfer(address,uint256)" 0xcC50098040cdD7F65f198f3EDF5baB02bC3dfa10 1e6
-  )
-  chainsig:transfer solana "payroll" 8xXETPXGab2fEyqhaeGeUkxxFXhGkC5wo8ndNzTikcZj 0.01
-  chainsig:transfer bitcoin "payroll" tb1qsstasqk8t7qu0d9ywr7khf3nug2jyaszpkrl4d 0.00001
+  intents:swap 2 from near:USDC to base:USDC --to 0xYourBaseAddress
+  intents:swap 2 from near:USDC to solana:USDC --to YourSolanaAddress
 )
 ```
 
