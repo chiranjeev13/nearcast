@@ -1,12 +1,13 @@
 # nearcast
 
-**Script every chain from one NEAR account.**
+**A scripting language for NEAR.**
 
-Nearcast is an editor for cross-chain work. You write a few readable lines, see exactly what will happen on every chain, then approve it in your NEAR wallet. It can pay someone in USDC on Base, send SOL on Solana, pay out in Bitcoin, or settle USDC from NEAR onto other chains, all in one script with one wallet.
+Write what you want to happen onchain in a few readable lines. Nearcast simulates every step against live chain state, shows exactly what will be signed, then runs it, and picks up where it stopped if anything fails. Because NEAR can sign for other chains and move assets across them, one NEAR script reaches Base, Solana, Bitcoin and more.
 
 **Try it:** https://nearcast-phi.vercel.app
 
 ```
+# Payroll on three chains, from one NEAR account
 load chainsig
 
 assert @chainsig:balance(base "payroll" USDC) >= 1e6 "Base payroll wallet needs 1 USDC"
@@ -20,25 +21,47 @@ batch (
 )
 ```
 
-## Why
+## Why a scripting language
 
-Moving money across chains today means a wallet per chain, a seed phrase per wallet, a bridge UI, and a lot of copy-pasted addresses. Nothing tells you what will happen before you sign, and if something fails halfway you're left working out which steps went through.
+Doing anything real onchain today means clicking through a different app for every step, and a different wallet for every chain. Nothing tells you what will happen before you sign, nothing can be repeated, and if something fails halfway you're left working out which steps went through.
 
-Nearcast replaces that with a short script and one NEAR account:
+A script fixes all of that:
 
-- **One account, every chain.** With NEAR Chain Signatures your NEAR account controls addresses on Base, Ethereum, Arbitrum, Optimism, Polygon, BNB Chain, Bitcoin and Solana. There are no extra wallets or seed phrases.
-- **Bridge without a bridge.** NEAR Intents solvers deliver USDC and other tokens to other chains in seconds, quoted before you sign and refunded if a quote isn't filled.
-- **See it before you sign it.** Simulate reads every chain and lists each step with exact amounts, fees and a risk tag. Nothing is signed until you review and approve.
-- **Crash-safe.** Every step is checkpointed. Close the tab, lose the connection or hit a failure, and the run resumes where it stopped without paying twice.
+- **Readable.** `transfer bob.testnet 0.1` says what it does. Anyone can review a script before it runs.
+- **Repeatable.** Save it, share it, run it again next month. Payroll, treasury moves and rebalancing become files, not checklists.
+- **Simulated first.** Every script is planned against live state on every chain, with exact amounts, fees and a risk tag per step. Nothing is signed until you approve.
+- **Resumable.** Every step is checkpointed. Close the tab, lose the connection or hit a failure, and the script resumes where it stopped without paying twice.
+- **Cross-chain by default.** With NEAR Chain Signatures, a NEAR account controls addresses on Base, Ethereum, Arbitrum, Optimism, Polygon, BNB Chain, Bitcoin and Solana. With NEAR Intents, USDC on NEAR lands on other chains in seconds. There are no extra wallets and no bridge UI.
 
-## How it works
+## The language
+
+```
+load token                                   # modules add commands: token, nft, stake, account, meta, chainsig, intents
+
+set $team bob.testnet                        # variables
+print "balance:" @balance                    # @helpers read live state: @balance, @view, @token:balance, @chainsig:address …
+
+assert @balance > 1near "need 1 NEAR"        # guards: the script stops before anything is signed if one fails
+
+transfer $team 0.1                           # one command = one step
+token:transfer USDC alice.testnet 1 --memo "payroll"
+
+batch (                                      # blocks: batch = one atomic transaction, seq, as <account>,
+  call counter.testnet increment             #         chainsig:on <chain> for EVM calls, meta:relay for gasless
+  call counter.testnet increment
+)
+```
+
+Amounts read the way you'd write them: `0.1` NEAR, `1near`, `100tgas`, `1e6` (raw units). The editor autocompletes every command, helper, chain and token, and shows the docs on hover.
+
+## How a script runs
 
 1. **Write.** Use a VS Code-style editor with autocomplete, hover docs and examples.
 2. **Simulate.** Live balances, gas estimates, pinned nonces, Bitcoin inputs and Intents quotes. Every step is tagged `[READ-ONLY]`, `[STATE-CHANGING]`, `[IRREVERSIBLE]` or `[HIGH-VALUE]`.
-3. **Review and execute.** Your NEAR wallet (Meteor, HOT, MyNearWallet, Intear, or MetaMask through NEAR's Ethereum wallet support) approves each transaction. `batch ( … )` groups several actions into one approval.
+3. **Review and execute.** Your NEAR wallet (Meteor, HOT, MyNearWallet, Intear, or MetaMask through NEAR's Ethereum wallet support) approves each transaction. `batch ( … )` groups actions into one approval.
 4. **Track and prove.** The Flow panel shows each chain as a lane and links every transaction to its explorer.
 
-## What you can do
+## What scripts can do
 
 | | |
 |---|---|
