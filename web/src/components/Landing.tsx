@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { buildDocs } from "../../../src/docs.ts";
 import { Lockup, Mark } from "./Logo.tsx";
 
 /**
@@ -172,18 +173,53 @@ const FEATURES = [
   { title: "Resumable", body: "Each step is saved before the next one starts. After a crash, resume from the checkpoint and nothing is sent twice." },
 ];
 
-/** Everything a script can do, by module. Command names match the language exactly. */
-const CAPABILITIES: { area: string; cmds: string[]; body: string }[] = [
-  { area: "NEAR basics", cmds: ["transfer", "call", "batch", "as"], body: "Send NEAR, call any contract, group actions into one atomic approval, act as another account." },
-  { area: "Tokens", cmds: ["token:transfer", "token:transfer-call", "token:wrap"], body: "NEP-141 transfers with automatic storage registration, wNEAR wrap and unwrap." },
-  { area: "NFTs", cmds: ["nft:transfer", "nft:approve", "nft:revoke"], body: "NEP-171 transfers and marketplace approvals." },
-  { area: "Staking", cmds: ["stake:deposit", "stake:unstake", "stake:withdraw"], body: "Any validator pool or liquid staking protocol, or stake natively as a validator." },
-  { area: "Accounts", cmds: ["account:create", "account:add-key", "account:deploy"], body: "Create and delete accounts, manage access keys, deploy contracts and global contracts." },
-  { area: "Gasless", cmds: ["meta:relay", "meta:sign"], body: "NEP-366 meta transactions: one account signs, another pays the gas." },
-  { area: "Other chains", cmds: ["chainsig:on", "chainsig:transfer"], body: "Your NEAR account sends and calls contracts on EVM chains, Bitcoin and Solana through Chain Signatures." },
-  { area: "Bridge & swap", cmds: ["intents:swap"], body: "Move assets between NEAR and other chains through NEAR Intents. Several swaps fit in one approval." },
-  { area: "Guards", cmds: ["assert", "@balance", "@view"], body: "Check live balances and contract state. A failed check stops the run before anything is signed." },
-];
+const KIND_ICON = { command: "codicon-symbol-method", helper: "codicon-symbol-function", keyword: "codicon-symbol-keyword" } as const;
+const KIND_COLOR = { command: GREEN, helper: "#dcdcaa", keyword: "#c586c0" } as const;
+/** Modules shown open on the landing page; the rest start folded. */
+const OPEN_BY_DEFAULT = new Set(["std", "chainsig", "intents"]);
+
+/**
+ * The editor's Docs pane, on the landing page: every command and helper, grouped by module, built
+ * from the same docs the language uses, so it can't drift from what actually exists.
+ */
+function DocsShowcase() {
+  const docs = useMemo(() => buildDocs(), []);
+  const groups = useMemo(
+    () => [{ name: "", label: "language", summary: "Variables, output and checks." }, ...docs.modules.map((m) => ({ name: m.name, label: m.builtin ? `${m.name} (built in)` : m.name, summary: m.summary }))]
+      .map((g) => ({ ...g, entries: docs.entries.filter((e) => e.module === g.name) }))
+      .filter((g) => g.entries.length),
+    [docs],
+  );
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-[#181818] overflow-hidden shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8)]">
+      <div className="h-9 px-4 flex items-center justify-between gap-3 border-b border-white/[0.06] text-[11px] text-[#8b919c]">
+        <span className="tracking-[0.08em] uppercase">Docs</span>
+        <span className="truncate">{groups.length - 1} modules · {docs.entries.length} commands &amp; helpers</span>
+      </div>
+      <div className="max-h-[560px] overflow-y-auto py-1">
+        {groups.map((g) => (
+          <details key={g.label} open={OPEN_BY_DEFAULT.has(g.name)} className="group/mod">
+            <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none h-8 px-3 flex items-center gap-2 min-w-0 hover:bg-white/[0.04]">
+              <i className="codicon codicon-chevron-right text-[#8b919c] transition-transform group-open/mod:rotate-90" style={{ fontSize: 14 }} />
+              <span className="text-[12px] font-semibold uppercase tracking-[0.04em] text-[#e6e8ec] whitespace-nowrap">{g.label}</span>
+              <span className="text-[12px] text-[#6f7580]">{g.entries.length}</span>
+              <span className="text-[12px] text-[#6f7580] truncate hidden sm:inline group-open/mod:hidden">{g.summary}</span>
+            </summary>
+            <ul className="m-0 p-0 list-none pb-1">
+              {g.entries.map((e) => (
+                <li key={`${e.kind}:${e.insert}`} title={e.usage} className="h-7 pl-8 pr-3 flex items-center gap-2 min-w-0 hover:bg-white/[0.04]">
+                  <i className={`codicon ${KIND_ICON[e.kind]} shrink-0`} style={{ color: KIND_COLOR[e.kind], fontSize: 14 }} />
+                  <code className="text-[12.5px] text-[#e6e8ec] whitespace-nowrap shrink-0" style={{ fontFamily: MONO }}>{e.insert}</code>
+                  <span className="text-[12.5px] text-[#8b919c] truncate">{e.summary}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const CHAINS = ["NEAR", "Ethereum", "Base", "Arbitrum", "Optimism", "Polygon", "BNB Chain", "Bitcoin", "Solana"];
 
@@ -264,20 +300,10 @@ export function Landing({ onOpen }: { onOpen: () => void }) {
             <div className="max-w-[660px] flex flex-col gap-4">
               <h2 className="m-0 font-semibold tracking-[-0.025em] text-balance" style={{ fontSize: "clamp(28px, 3.2vw, 40px)" }}>What a script can do</h2>
               <p className="m-0 text-[clamp(15px,1.25vw,17px)] leading-[1.65] text-[#a9aeb8]">
-                Every NEAR action, plus other chains through Chain Signatures and NEAR Intents. Each line below is a real command.
+                Every NEAR action, plus other chains through Chain Signatures and NEAR Intents. Below is the editor’s own Docs pane: every command and helper in the language. Open a module to see what it does.
               </p>
             </div>
-            <ul className="m-0 p-0 list-none border-t border-white/[0.08]">
-              {CAPABILITIES.map((c) => (
-                <li key={c.area} className="grid gap-x-8 gap-y-2 py-4 border-b border-white/[0.08] md:grid-cols-[150px_minmax(0,1.1fr)_minmax(0,1fr)] md:items-baseline">
-                  <div className="text-[15px] font-medium text-[#e6e8ec]">{c.area}</div>
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-[13.5px] min-w-0" style={{ fontFamily: MONO }}>
-                    {c.cmds.map((cmd) => <code key={cmd} style={{ color: GREEN }}>{cmd}</code>)}
-                  </div>
-                  <p className="m-0 text-[14.5px] leading-[1.55] text-[#a9aeb8]">{c.body}</p>
-                </li>
-              ))}
-            </ul>
+            <DocsShowcase />
           </div>
         </section>
 
