@@ -172,6 +172,19 @@ const FEATURES = [
   { title: "Resumable", body: "Each step is saved before the next one starts. After a crash, resume from the checkpoint and nothing is sent twice." },
 ];
 
+/** Everything a script can do, by module. Command names match the language exactly. */
+const CAPABILITIES: { area: string; cmds: string[]; body: string }[] = [
+  { area: "NEAR basics", cmds: ["transfer", "call", "batch", "as"], body: "Send NEAR, call any contract, group actions into one atomic approval, act as another account." },
+  { area: "Tokens", cmds: ["token:transfer", "token:transfer-call", "token:wrap"], body: "NEP-141 transfers with automatic storage registration, wNEAR wrap and unwrap." },
+  { area: "NFTs", cmds: ["nft:transfer", "nft:approve", "nft:revoke"], body: "NEP-171 transfers and marketplace approvals." },
+  { area: "Staking", cmds: ["stake:deposit", "stake:unstake", "stake:withdraw"], body: "Any validator pool or liquid staking protocol, or stake natively as a validator." },
+  { area: "Accounts", cmds: ["account:create", "account:add-key", "account:deploy"], body: "Create and delete accounts, manage access keys, deploy contracts and global contracts." },
+  { area: "Gasless", cmds: ["meta:relay", "meta:sign"], body: "NEP-366 meta transactions: one account signs, another pays the gas." },
+  { area: "Other chains", cmds: ["chainsig:on", "chainsig:transfer"], body: "Your NEAR account sends and calls contracts on EVM chains, Bitcoin and Solana through Chain Signatures." },
+  { area: "Bridge & swap", cmds: ["intents:swap"], body: "Move assets between NEAR and other chains through NEAR Intents. Several swaps fit in one approval." },
+  { area: "Guards", cmds: ["assert", "@balance", "@view"], body: "Check live balances and contract state. A failed check stops the run before anything is signed." },
+];
+
 const CHAINS = ["NEAR", "Ethereum", "Base", "Arbitrum", "Optimism", "Polygon", "BNB Chain", "Bitcoin", "Solana"];
 
 /** Staggered entrance; the resting state is fully visible. */
@@ -202,6 +215,7 @@ export function Landing({ onOpen }: { onOpen: () => void }) {
         <div className="mx-auto max-w-[1180px] h-16 px-[max(16px,4vw)] flex items-center justify-between">
           <a href="#" aria-label="nearcast home" className="inline-flex"><Lockup size={19} /></a>
           <nav className="flex items-center gap-1 sm:gap-2 text-[14px]">
+            <a href="#features" className="inline-flex h-9 px-2.5 sm:px-3 items-center rounded-md text-[#a9aeb8] hover:text-white hover:bg-white/[0.05]">What it can do</a>
             <a href="#how" className="hidden sm:inline-flex h-9 px-3 items-center rounded-md text-[#a9aeb8] hover:text-white hover:bg-white/[0.05]">How it works</a>
             <button onClick={onOpen} className="h-9 px-3.5 rounded-md bg-white/[0.08] hover:bg-white/[0.14] text-white cursor-pointer">Open Editor</button>
           </nav>
@@ -245,7 +259,29 @@ export function Landing({ onOpen }: { onOpen: () => void }) {
           </div>
         </section>
 
-        <section id="how" className="relative border-t border-white/[0.06]">
+        <section id="features" className="relative border-t border-white/[0.06] scroll-mt-16">
+          <div className="mx-auto max-w-[1180px] px-[max(16px,4vw)] py-[clamp(56px,8vw,104px)] flex flex-col gap-[clamp(28px,4vw,44px)]">
+            <div className="max-w-[660px] flex flex-col gap-4">
+              <h2 className="m-0 font-semibold tracking-[-0.025em] text-balance" style={{ fontSize: "clamp(28px, 3.2vw, 40px)" }}>What a script can do</h2>
+              <p className="m-0 text-[clamp(15px,1.25vw,17px)] leading-[1.65] text-[#a9aeb8]">
+                Every NEAR action, plus other chains through Chain Signatures and NEAR Intents. Each line below is a real command.
+              </p>
+            </div>
+            <ul className="m-0 p-0 list-none border-t border-white/[0.08]">
+              {CAPABILITIES.map((c) => (
+                <li key={c.area} className="grid gap-x-8 gap-y-2 py-4 border-b border-white/[0.08] md:grid-cols-[150px_minmax(0,1.1fr)_minmax(0,1fr)] md:items-baseline">
+                  <div className="text-[15px] font-medium text-[#e6e8ec]">{c.area}</div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-[13.5px] min-w-0" style={{ fontFamily: MONO }}>
+                    {c.cmds.map((cmd) => <code key={cmd} style={{ color: GREEN }}>{cmd}</code>)}
+                  </div>
+                  <p className="m-0 text-[14.5px] leading-[1.55] text-[#a9aeb8]">{c.body}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section id="how" className="relative border-t border-white/[0.06] scroll-mt-16">
           <div className="mx-auto max-w-[1180px] px-[max(16px,4vw)] py-[clamp(56px,8vw,104px)] flex flex-col gap-[clamp(36px,5vw,60px)]">
             <div className="max-w-[660px] flex flex-col gap-4">
               <h2 className="m-0 font-semibold tracking-[-0.025em] text-balance" style={{ fontSize: "clamp(28px, 3.2vw, 40px)" }}>One script, every chain</h2>
