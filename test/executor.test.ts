@@ -91,6 +91,40 @@ describe("executor", () => {
     expect(receipt).toContain(cp.state.s2.txHash!);
   });
 
+  it("batches signature requests into one NEAR transaction and gives each payment its own signature", async () => {
+    const src = `load chainsig
+batch (
+  chainsig:on base "treasury" (
+    exec @token(USDC) "transfer(address,uint256)" 0x000000000000000000000000000000000000dEaD 1e6
+    exec @token(USDC) "transfer(address,uint256)" 0x000000000000000000000000000000000000bEEF 2e6
+  )
+)
+`;
+    const { env, store, cp } = await setup(src);
+    expect(cp.plan.steps.map((s) => s.type)).toEqual(["near-tx", "evm-tx", "evm-tx"]);
+    const signStep = cp.plan.steps[0] as any;
+    expect(signStep.purpose.kind).toBe("mpc-sign-batch");
+    expect(signStep.purpose.signs.map((r: any) => r.forStep)).toEqual(["s2", "s3"]);
+    expect(cp.plan.steps.slice(1).map((s: any) => s.signedBy)).toEqual(["s1", "s1"]);
+    expect(await execute(cp, env, store, FAST)).toEqual({ kind: "done" });
+    expect(statuses(cp)).toEqual(["confirmed", "confirmed", "confirmed"]);
+    expect(count(env, "near.sign")).toBe(1); // one wallet approval
+    expect(count(env, "evm.send")).toBe(2);
+    expect([...env.evmTxs.keys()].sort()).toEqual([cp.state.s2.txHash, cp.state.s3.txHash].sort());
+  });
+
+  it("a batch with chain signatures cannot mix in other NEAR actions", async () => {
+    const env = fakeEnv();
+    await expect(plan(`load chainsig
+batch (
+  transfer bob.testnet 1
+  chainsig:on base "treasury" (
+    exec @token(USDC) "transfer(address,uint256)" 0x000000000000000000000000000000000000dEaD 1e6
+  )
+)
+`, env)).rejects.toThrow(/chain signatures go to/);
+  });
+
   it("resume skips confirmed steps", async () => {
     const { env, store, cp } = await setup();
     await expect(execute(cp, env, store, killAt(2, "confirmed"))).rejects.toThrow(Killed);

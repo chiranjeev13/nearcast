@@ -57,7 +57,7 @@ export function stepHint(s: Step, st: StepState): string | undefined {
   if (/AccountAlreadyExists/.test(e)) return "the account already exists → pick another name; earlier steps stay done";
   if (/AccountDoesNotExist/.test(e)) return "an account in this step does not exist → create or fix it, then Resume and retry";
   if (/InvalidNonce|nonce/i.test(e) && s.type === "near-tx") return "another transaction used this key's nonce → Resume signs again only after the old one provably expired";
-  if (s.type === "near-tx" && s.purpose?.kind === "mpc-sign") return "the MPC network did not answer in time → Resume asks again (safe: a signature moves nothing)";
+  if (s.type === "near-tx" && (s.purpose?.kind === "mpc-sign" || s.purpose?.kind === "mpc-sign-batch")) return "the MPC network did not answer in time → Resume asks again (safe: a signature moves nothing)";
   if (s.type === "near-tx") return "a receipt failed; later receipts may have had effects → inspect in the explorer, then Resume and retry only if safe";
   if (s.type === "evm-tx") return "reverted: the nonce is used and gas spent → fix the cause and run the rest as a new script";
   if (s.type === "btc-tx") return "rejected by the Bitcoin network (inputs spent or fee too low?) → check the address, then plan a new run";
@@ -181,7 +181,7 @@ export function planView(plan: Plan, state: Record<string, StepState> = {}, canS
           ["amount", `${units(s.amount, 8)} BTC (${s.amount} sats)`],
           ["fee", `${units(s.fee, 8)} BTC (${s.fee} sats, pinned)`],
           ["inputs", s.inputs.map((i) => `${i.txid.slice(0, 10)}…:${i.vout} (${i.value} sats)`).join(", ")],
-          ["signed by", s.signedBy.map((x) => `step ${Number(x.slice(1))}`).join(", ")],
+          ["signed by", [...new Set(s.signedBy)].map((x) => `step ${Number(x.slice(1))}`).join(", ")],
         ],
         actions: [], atomic: false, signedWith: "mpc",
         fee: st.feePaid ? `${units(BigInt(st.feePaid), 8)} BTC` : undefined,

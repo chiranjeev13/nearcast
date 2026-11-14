@@ -25,7 +25,7 @@ export function nextAction(step: Step, st: StepState, opts: { retryFailed?: bool
       // A failed assert changed nothing: check it again.
       if (step.type === "assert") return "retry";
       // A failed MPC signature request has no effect besides its fee, so asking again is safe.
-      if (step.type === "near-tx" && step.purpose?.kind === "mpc-sign") return "retry";
+      if (step.type === "near-tx" && (step.purpose?.kind === "mpc-sign" || step.purpose?.kind === "mpc-sign-batch")) return "retry";
       // Any other failed NEAR transaction is retried only on request: later receipts may have had effects.
       if (step.type === "near-tx") return opts.retryFailed ? "retry" : "stop";
       // A wallet transaction that failed: retry only on request (a rejected one sent nothing; a reverted one did).

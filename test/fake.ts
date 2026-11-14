@@ -141,6 +141,25 @@ export function fakeEnv(): Fake {
           return;
         }
         let value: unknown = null;
+        const signs = tx.actions.filter((a: any) => a.kind === "call" && a.method === "sign");
+        if (signs.length > 1) {
+          // Several sign requests: each answers in its own receipt. Returned in reverse order, so the
+          // executor must match signatures to payments by verifying them, not by position.
+          const values: unknown[] = [];
+          for (const a of signs as any[]) {
+            const p2 = a.args.request.payload_v2;
+            if (p2.Eddsa !== undefined) {
+              f.eddsaPayloads.push(p2.Eddsa);
+              values.push({ scheme: "Ed25519", signature: Array.from({ length: 64 }, (_, i) => i) });
+              continue;
+            }
+            const s = await sign({ hash: `0x${p2.Ecdsa}` as `0x${string}`, privateKey: PK });
+            values.push({ scheme: "Secp256k1", big_r: { affine_point: `02${s.r.slice(2)}` }, s: { scalar: s.s.slice(2) }, recovery_id: s.yParity });
+          }
+          values.reverse();
+          f.nearTxs.set(hash, { state: "success", value: values[values.length - 1], values, tokensBurnt: 10n ** 20n });
+          return;
+        }
         if (tx.actions[0].method === "sign") {
           const p2 = tx.actions[0].args.request.payload_v2;
           if (p2.Eddsa !== undefined) {

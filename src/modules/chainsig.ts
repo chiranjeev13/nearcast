@@ -25,13 +25,8 @@ export const chainsig: Module = {
   commands: {
     async on(ctx, cmd) {
       if (cmd.args.length !== 2 || !cmd.block) throw new Error('usage: chainsig:on <chain> "<path>" ( exec ... )');
-      if (ctx.scopeKind !== "seq") {
-        throw new Error(
-          ctx.scopeKind === "batch"
-            ? "chainsig:on cannot be inside batch: a call on another chain can never be atomic with a NEAR transaction"
-            : "chainsig:on cannot be nested",
-        );
-      }
+      // Inside batch ( ... ) only the signature requests are batched; the calls still run one by one.
+      if (ctx.scopeKind !== "seq" && ctx.scopeKind !== "batch") throw new Error("chainsig:on cannot be nested");
       const chain = ctx.env.chain(asString(await ctx.eval(cmd.args[0]), "chain"));
       if (chain.kind !== "evm") throw new Error(`chainsig:on runs EVM calls; for ${chain.label} use chainsig:transfer`);
       const path = asString(await ctx.eval(cmd.args[1]), "path");

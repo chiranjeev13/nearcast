@@ -15,6 +15,8 @@ export interface TxOutcome {
   state: "success" | "failure" | "pending" | "unknown";
   /** Decoded SuccessValue (JSON if parseable, raw string otherwise). */
   value?: unknown;
+  /** Decoded return value of every receipt that returned one. */
+  values?: unknown[];
   error?: string;
   gasBurnt?: bigint;
   tokensBurnt?: bigint;
@@ -151,7 +153,17 @@ export class NearRpc {
       try {
         value = raw === "" ? null : JSON.parse(raw);
       } catch {}
-      return { state: "success", value, ...burnt(r) };
+      // Every receipt's return value: a transaction with several sign requests gets each signature
+      // back in its own receipt, and only the last one is the transaction's value.
+      const values: unknown[] = [];
+      for (const o of r.receipts_outcome ?? []) {
+        const v = o.outcome?.status?.SuccessValue;
+        if (!v) continue;
+        try {
+          values.push(JSON.parse(Buffer.from(v, "base64").toString()));
+        } catch {}
+      }
+      return { state: "success", value, values, ...burnt(r) };
     }
     return { state: "pending" };
   }
