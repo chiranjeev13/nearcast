@@ -1,4 +1,4 @@
-import type { Ctx, InfoResponse, Snapshot } from "@api";
+import type { Ctx, FileEntry, InfoResponse, Snapshot } from "@api";
 
 export class ApiError extends Error {
   constructor(message: string, readonly line?: number) {
@@ -6,27 +6,28 @@ export class ApiError extends Error {
   }
 }
 
-function token(): string {
-  const t = document.querySelector('meta[name="nearcast-token"]')?.getAttribute("content") ?? "";
-  // Not replaced = served by the Vite dev server; its proxy adds the header instead.
-  return t === "__NEARCAST_TOKEN__" ? "" : t;
-}
+/**
+ * The app's API. The engine runs in this browser and every step is signed by a wallet, both when
+ * hosted (Vercel) and when served by `nearcast ui`. No keys ever reach a server.
+ */
+let enginePromise: Promise<Record<string, (body: any) => Promise<unknown>>> | null = null;
+const engine = () => (enginePromise ??= import("./engine.ts").then((m) => m.engine));
 
 async function call<T>(name: string, body: object = {}): Promise<T> {
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  const t = token();
-  if (t) headers["x-nearcast-token"] = t;
-  const res = await fetch(`./api/${name}`, { method: "POST", headers, body: JSON.stringify(body) });
-  let data: any = null;
   try {
-    data = await res.json();
-  } catch {}
-  if (!res.ok) throw new ApiError(data?.error ?? `HTTP ${res.status}`, data?.line);
-  return data as T;
+    return (await (await engine())[name](body)) as T;
+  } catch (e: any) {
+    throw new ApiError(e?.message ?? String(e), e?.loc?.line);
+  }
 }
 
 export const api = {
   info: () => call<InfoResponse>("info"),
+  files: () => call<{ dir: string; files: FileEntry[] }>("files"),
+  read: (name: string) => call<{ name: string; source: string }>("read", { name }),
+  write: (name: string, source: string, create = false) => call<FileEntry>("write", { name, source, create }),
+  rename: (from: string, to: string) => call<FileEntry>("rename", { from, to }),
+  remove: (name: string) => call<{ ok: true }>("delete", { name }),
   plan: (ctx: Ctx, source: string, fresh = false) => call<Snapshot>("plan", { ctx, source, fresh }),
   state: (ctx: Ctx, hash: string) => call<Snapshot>("state", { ctx, hash }),
   run: (ctx: Ctx, hash: string, fresh = false) => call<Snapshot>("run", { ctx, hash, fresh }),

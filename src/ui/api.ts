@@ -96,6 +96,8 @@ export interface Ctx {
    * transaction into one transaction per action, so atomic steps are blocked for it.
    */
   walletId?: string;
+  /** Address of the EVM wallet connected in the browser (MetaMask etc.), if any. Used by `--from-wallet`. */
+  evmAccount?: string;
 }
 
 // ---------------------------------------------------------------- requests and responses
@@ -113,6 +115,20 @@ export interface InfoResponse {
   /** Script to open first. */
   initial: string;
   docs: Docs;
+}
+
+/**
+ * Workspace files: plain `.cast` files in one folder on disk (no subfolders).
+ * POST /api/files   {}                         -> { dir, files: FileEntry[] }
+ * POST /api/read    { name }                   -> { name, source }
+ * POST /api/write   { name, source, create? }  -> FileEntry   (create: fail if it exists)
+ * POST /api/rename  { from, to }               -> FileEntry
+ * POST /api/delete  { name }                   -> { ok: true }
+ */
+export interface FileEntry {
+  name: string;
+  size: number;
+  mtime: string;
 }
 
 /** POST /api/plan  { ctx, source, fresh?: boolean } -> Snapshot */
@@ -206,6 +222,21 @@ export interface PlanView {
 /** A NEAR transaction the browser must have the wallet sign and send. Wallet Selector's action JSON. */
 export interface WalletRequest {
   id: string;
+  /** "near": sign with the NEAR wallet (actions below). "evm": send `evm` with the browser's EVM wallet. */
+  kind: "near" | "evm";
+  evm?: {
+    chainId: number;
+    chainName: string;
+    from: string;
+    to: string;
+    data: string;
+    /** wei, decimal string */
+    value: string;
+    /** For wallet_addEthereumChain if the wallet does not know the chain. */
+    rpcUrl: string;
+    explorer: string;
+    symbol: string;
+  };
   /** Step number it belongs to (1-based) and its title. */
   step: number;
   title: string;

@@ -19,7 +19,7 @@ export function Summary({ v }: { v: PlanView }) {
   );
 }
 
-const MARK = { ok: ["✓", "text-accent"], warn: ["!", "text-warn"], fail: ["×", "text-bad"] } as const;
+const MARK = { ok: ["codicon-pass-filled", "text-accent"], warn: ["codicon-warning", "text-warn"], fail: ["codicon-error", "text-bad"] } as const;
 
 export function Checks({ v }: { v: PlanView }) {
   if (!v.checks.length && !v.problems.length) return null;
@@ -28,14 +28,14 @@ export function Checks({ v }: { v: PlanView }) {
   return (
     <div className="flex flex-col gap-1 text-[12px]">
       {v.checks.map((c, i) => (
-        <div key={i} className="flex gap-2">
-          <span className={`${MARK[c.level][1]} w-3 shrink-0`}>{MARK[c.level][0]}</span>
+        <div key={i} className="flex gap-1.5">
+          <i className={`codicon ${MARK[c.level][0]} ${MARK[c.level][1]} shrink-0 mt-[1px]`} style={{ fontSize: 14 }} />
           <span className={c.level === "ok" ? "text-dim" : ""}>{c.description}</span>
         </div>
       ))}
       {extra.map((p, i) => (
-        <div key={`p${i}`} className="flex gap-2">
-          <span className="text-bad w-3 shrink-0">×</span>
+        <div key={`p${i}`} className="flex gap-1.5">
+          <i className="codicon codicon-error text-bad shrink-0 mt-[1px]" style={{ fontSize: 14 }} />
           <span>{p}</span>
         </div>
       ))}

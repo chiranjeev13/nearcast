@@ -22,6 +22,7 @@
     "@near-js/types": "^2.5.1",
     "@near-js/utils": "^2.5.1",
     "@noble/curves": "1.8.1",
+    "@noble/hashes": "1.8.0",
     "@solana/web3.js": "1.99.0",
     "bitcoinjs-lib": "6.1.10",
     "borsh": "1.0.0",

@@ -11,7 +11,7 @@ import { checkHolds, registration } from "./token.js";
 import type { Module } from "./types.js";
 import { arity, onlyOpts } from "./types.js";
 
-const USAGE = 'intents:swap <amount> from <chain:TOKEN> to <chain:TOKEN> [--to <recipient>] [--path "p"] [--slippage <percent>] [--deadline <minutes>]';
+const USAGE = 'intents:swap <amount> from <chain:TOKEN> to <chain:TOKEN> [--from-wallet] [--to <recipient>] [--path "p"] [--slippage <percent>] [--deadline <minutes>]';
 const MIN_SECONDS_LEFT = 600n;
 const DEFAULT_DEADLINE_MIN = 60n;
 const DEFAULT_SLIPPAGE_BPS = 50n;
@@ -68,7 +68,8 @@ export const intents: Module = {
       // `from` and `to` are optional connecting words: `intents:swap 10 from base:USDC to arbitrum:USDC`.
       const args = cmd.args.filter((a) => !(a.kind === "word" && (a.value === "from" || a.value === "to")));
       arity(args, 3, 3, USAGE);
-      onlyOpts(cmd, ["to", "path", "slippage", "deadline"], "intents:swap");
+      onlyOpts(cmd, ["to", "path", "slippage", "deadline", "from-wallet"], "intents:swap");
+      const fromWallet = cmd.opts["from-wallet"] !== undefined && (await ctx.eval(cmd.opts["from-wallet"])) !== false;
       if (ctx.scopeKind !== "seq") throw new Error("intents:swap must be at the top level of the script");
       if (ctx.env.near.network !== "mainnet") {
         throw new Error("NEAR Intents runs on mainnet only: simulate this with --network mainnet (the UI's network switch)");
@@ -83,10 +84,39 @@ export const intents: Module = {
       const minutes = cmd.opts.deadline ? asInt(await ctx.eval(cmd.opts.deadline), "--deadline") : DEFAULT_DEADLINE_MIN;
       if (minutes < 15n || minutes > 24n * 60n) throw new Error("--deadline must be between 15 and 1440 minutes");
 
-      // Who pays in, who receives, who gets a refund. Defaults: addresses this NEAR account controls.
-      const depositor = await ownAddress(ctx, from.chain, path);
-      if (!depositor) throw new Error(`cannot deposit from ${from.chain}: Nearcast signs on near, ${ctx.env.chainNames().join(", ")}`);
-      const recipient = cmd.opts.to ? asString(await ctx.eval(cmd.opts.to), "--to") : await ownAddress(ctx, to.chain, path);
+      // Who pays in, who receives, who gets a refund.
+      //  - default: addresses this NEAR account controls (itself on NEAR, Chain Signatures elsewhere)
+      //  - --from-wallet: the EVM wallet connected in the browser pays, and gets refunds and EVM deliveries
+      let depositor: string | null;
+      let eoa: `0x${string}` | undefined;
+      if (fromWallet) {
+        eoa = ctx.env.evmWallet;
+        if (!eoa) throw new Error("--from-wallet needs an EVM wallet (MetaMask) connected in the web UI");
+        let c;
+        try {
+          c = ctx.env.chain(from.chain);
+        } catch {
+          c = null;
+        }
+        if (c?.kind !== "evm") throw new Error(`--from-wallet deposits from an EVM chain; ${from.chain} is not one`);
+        depositor = eoa;
+      } else {
+        depositor = await ownAddress(ctx, from.chain, path);
+        if (!depositor) throw new Error(`cannot deposit from ${from.chain}: Nearcast signs on near, ${ctx.env.chainNames().join(", ")}`);
+      }
+      let recipient: string | null = cmd.opts.to ? asString(await ctx.eval(cmd.opts.to), "--to") : null;
+      if (!recipient && eoa) {
+        let dest;
+        try {
+          dest = ctx.env.chain(to.chain);
+        } catch {
+          dest = null;
+        }
+        if (dest?.kind === "evm") recipient = eoa;
+        else if (to.chain === "near" && ctx.sender !== eoa.toLowerCase()) recipient = ctx.sender;
+        if (!recipient) throw new Error(`with --from-wallet, give the recipient on ${to.chain}: --to <address>`);
+      }
+      recipient ??= await ownAddress(ctx, to.chain, path);
       if (!recipient) throw new Error(`no address of yours on ${to.chain}: pass --to <recipient>`);
 
       const deadline = new Date(Date.now() + Number(minutes) * 60_000).toISOString();
@@ -133,6 +163,28 @@ export const intents: Module = {
         });
         await checkHolds(ctx, { id: t.contractAddress, decimals: t.decimals, symbol: t.symbol }, amount, `${units(amount, t.decimals)} ${t.symbol}`, cmd.loc.line);
         await ctx.near({ receiver: t.contractAddress, actions, atomic: actions.length > 1, description: `deposit ${fromHuman} into NEAR Intents` });
+      } else if (eoa) {
+        // The user's own wallet signs: no Chain Signatures, no NEAR fees.
+        const chain = ctx.env.chain(from.chain);
+        if (chain.kind !== "evm") throw new Error("internal: --from-wallet on a non-EVM chain");
+        if (t.contractAddress) {
+          const call = encodeCall("transfer(address,uint256)", [deposit, amount]);
+          const have = await ctx.env.evm.erc20Balance(chain, t.contractAddress as `0x${string}`, eoa);
+          if (have < amount) {
+            ctx.checks.push({ level: "fail", description: `line ${cmd.loc.line}: your wallet ${eoa} holds ${units(have, t.decimals)} ${t.symbol} on ${chain.label}, less than ${units(amount, t.decimals)}` });
+          }
+          await ctx.evmWalletCall(chain, eoa, {
+            to: t.contractAddress as `0x${string}`, signature: "transfer(address,uint256)", args: call.args, data: call.data, value: 0n,
+            decoded: call.decoded,
+            description: `from your wallet on ${chain.label}, deposit ${units(amount, t.decimals)} ${t.symbol} into NEAR Intents (${deposit})`,
+          });
+        } else {
+          await ctx.evmWalletCall(chain, eoa, {
+            to: deposit as `0x${string}`, signature: "", args: [], data: "0x", value: amount,
+            decoded: `send ${units(amount, 18)} ${chain.symbol} (${amount} wei)`,
+            description: `from your wallet on ${chain.label}, deposit ${units(amount, 18)} ${chain.symbol} into NEAR Intents (${deposit})`,
+          });
+        }
       } else {
         const chain = ctx.env.chain(from.chain);
         if (chain.kind === "evm") {
@@ -205,8 +257,9 @@ export const intents: Module = {
       usage: USAGE,
       summary: "Bridge or swap through NEAR Intents. Your NEAR account signs the deposit; solvers deliver on the other chain.",
       details: "Mainnet only. `from`/`to` are optional. Same token on two chains = bridge (base:USDC → arbitrum:USDC). Recipient and refund default to addresses this NEAR account controls. The quote is re-checked before depositing; unfilled swaps are refunded.",
-      example: "intents:swap 10 from base:USDC to arbitrum:USDC",
+      example: "intents:swap 100 from base:USDC to arbitrum:USDC --from-wallet",
       opts: [
+        { name: "from-wallet", summary: "deposit from the EVM wallet connected in the UI (MetaMask); refunds go back to it" },
         { name: "to", value: "<recipient>", summary: "receiver on the destination chain (default: yours)" },
         { name: "path", value: '"p"', summary: 'Chain Signatures path for your addresses (default "intents")' },
         { name: "slippage", value: "<percent>", summary: "max price slippage, default 0.5" },

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { BtcChain, Env, EvmChain, SolChain } from "./../env.js";
 import { eth, near, tgas, units } from "../format.js";
 import type { CommandStmt, Expr, Stmt } from "../lang/ast.js";
@@ -8,6 +7,7 @@ import { MODULES } from "../modules/index.js";
 import type { Module } from "../modules/types.js";
 import { TGAS } from "../registry.js";
 import { signingHash } from "../evm/tx.js";
+import { envVar, sha256Hex } from "../portable.js";
 import { evalAssert, evalExpr, show, type EvalCtx } from "./eval.js";
 import {
   actionDeposit,
@@ -16,6 +16,7 @@ import {
   type Check,
   type DelegateSignStep,
   type EvmTxStep,
+  type EvmWalletTxStep,
   type NearAction,
   type NearTxStep,
   type Plan,
@@ -31,8 +32,8 @@ type Scope =
   /** meta:relay / meta:sign: like a batch, but the receiver is fixed by the first action. */
   | { kind: "meta"; receiver?: string; actions: NearAction[]; parts: string[] };
 
-export const SIGN_GAS = BigInt(process.env.NEARCAST_SIGN_GAS_TGAS ?? 50) * TGAS;
-export const SIGN_DEPOSIT = BigInt(process.env.NEARCAST_SIGN_DEPOSIT_YOCTO ?? 1);
+export const SIGN_GAS = BigInt(envVar("NEARCAST_SIGN_GAS_TGAS") ?? 50) * TGAS;
+export const SIGN_DEPOSIT = BigInt(envVar("NEARCAST_SIGN_DEPOSIT_YOCTO") ?? 1);
 /** Protocol limit on gas attached to one transaction (1 PGas). */
 const MAX_TX_GAS = 1000n * TGAS;
 const FALLBACK_EVM_GAS = 200_000n;
@@ -394,6 +395,38 @@ export class PlanCtx implements EvalCtx {
     return this.steps[this.steps.length - 1].id;
   }
 
+  /**
+   * An EVM transaction the user's own browser wallet signs (no Chain Signatures). Simulated now from
+   * that address with eth_estimateGas; the wallet picks the nonce and fees when it sends.
+   */
+  async evmWalletCall(chain: EvmChain, from: `0x${string}`, op: Omit<EvmOp, "gas">): Promise<EvmWalletTxStep> {
+    if (this.#scope.kind !== "seq") throw this.#err("a wallet transaction must be at the top level of the script");
+    if (!this.#evmFees.has(chain.chainId)) this.#evmFees.set(chain.chainId, await this.env.evm.fees(chain));
+    const fees = this.#evmFees.get(chain.chainId)!;
+    const est = await this.env.evm.estimateGas(chain, { from, to: op.to, data: op.data, value: op.value });
+    let gas: bigint;
+    if ("gas" in est) gas = (est.gas * 13n) / 10n;
+    else {
+      gas = FALLBACK_EVM_GAS;
+      this.checks.push({ level: "fail", description: `line ${this.line}: simulating ${op.decoded} from ${from} on ${chain.label} reverts: ${est.revert}` });
+    }
+    const step: EvmWalletTxStep = {
+      ...this.#base(op.description),
+      type: "evm-wallet-tx",
+      chain,
+      from,
+      to: op.to,
+      data: op.data,
+      value: op.value,
+      decoded: op.decoded,
+      gas,
+      maxFee: gas * fees.maxFeePerGas,
+    };
+    this.steps.push(step);
+    this.#txSeen = true;
+    return step;
+  }
+
   // ------------------------------------------------------------------ blocks
 
   async block(stmts: Stmt[], scope: Scope): Promise<void> {
@@ -548,9 +581,10 @@ export class PlanCtx implements EvalCtx {
     const evmNeed = new Map<string, { chain: EvmChain; sender: `0x${string}`; need: bigint }>();
     for (const s of this.steps) {
       if (s.type === "near-tx") add(s.sender, s.maxFee + s.actions.reduce((x, a) => x + actionDeposit(a), 0n));
-      if (s.type === "evm-tx") {
-        const k = `${s.chain.chainId}:${s.sender}`;
-        const cur = evmNeed.get(k) ?? { chain: s.chain, sender: s.sender, need: 0n };
+      if (s.type === "evm-tx" || s.type === "evm-wallet-tx") {
+        const sender = s.type === "evm-tx" ? s.sender : s.from;
+        const k = `${s.chain.chainId}:${sender.toLowerCase()}`;
+        const cur = evmNeed.get(k) ?? { chain: s.chain, sender, need: 0n };
         cur.need += s.maxFee + s.value;
         evmNeed.set(k, cur);
       }
@@ -584,7 +618,7 @@ export class PlanCtx implements EvalCtx {
 
 export { STORAGE_PRICE_PER_BYTE };
 
-export const scriptHash = (source: string): string => createHash("sha256").update(source).digest("hex");
+export const scriptHash = (source: string): string => sha256Hex(source);
 
 /** Script text in, flat ordered step list out. Reads chain state; signs and sends nothing. */
 export async function plan(source: string, env: Env): Promise<Plan> {

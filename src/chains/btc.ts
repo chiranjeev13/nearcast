@@ -3,6 +3,7 @@ import * as bitcoin from "bitcoinjs-lib";
 import { chainAdapters, contracts } from "chainsig.js";
 import type { BtcPrepared, Env } from "../env.js";
 import type { BtcTxStep } from "../plan/types.js";
+import { envVar } from "../portable.js";
 import { CHAINS, type BtcDef, type NetworkName } from "../registry.js";
 
 const DUST = 546n;
@@ -67,7 +68,7 @@ export function btcEnv(network: NetworkName, signerContract: string): Env["btc"]
   const defs = Object.values(CHAINS[network]).filter((c): c is BtcDef => c.kind === "btc");
   const api = (name: string) => {
     const d = defs.find((x) => x.name === name)!;
-    return (process.env[d.apiEnv] ?? d.api).replace(/\/$/, "");
+    return (envVar(d.apiEnv) ?? d.api).replace(/\/$/, "");
   };
   const get = async (name: string, path: string): Promise<Response> => {
     const r = await fetch(`${api(name)}${path}`, { signal: AbortSignal.timeout(20_000) });

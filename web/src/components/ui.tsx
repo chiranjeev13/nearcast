@@ -4,15 +4,15 @@ type Variant = "primary" | "ghost" | "danger" | "outline";
 
 export function Button({ variant = "outline", className = "", ...p }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
   const v = {
-    primary: "bg-accent text-accent-ink border-accent hover:brightness-110 font-bold hover:shadow-[0_0_18px_#39ff1477] shadow-[0_0_10px_#39ff1433]",
-    outline: "border-line-2 text-text hover:border-dim",
+    primary: "bg-accent text-accent-ink border-transparent hover:bg-[#6bff52] font-medium",
+    outline: "bg-[#313131] border-transparent text-text hover:bg-[#3c3c3c]",
     ghost: "border-transparent text-dim hover:text-text",
     danger: "border-bad/60 text-bad hover:border-bad",
   }[variant];
   return (
     <button
       {...p}
-      className={`h-8 px-3 border rounded-md text-[12px] font-medium whitespace-nowrap transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${v} ${className}`}
+      className={`h-[26px] px-3 border rounded-[2px] text-[12px] whitespace-nowrap transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${v} ${className}`}
     />
   );
 }
@@ -77,8 +77,8 @@ export function Value({ text }: { text: string }) {
 
 export function Modal({ children, onClose, wide }: { children: ReactNode; onClose: () => void; wide?: boolean }) {
   return (
-    <div className="fixed inset-0 z-40 bg-black/70 flex items-start justify-center p-4 pt-[8vh] overflow-y-auto" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`w-full ${wide ? "max-w-[760px]" : "max-w-[460px]"} bg-panel border border-line-2 rounded-[4px] shadow-[8px_8px_0_#00000080]`}>{children}</div>
+    <div className="fixed inset-0 z-40 bg-black/40 flex items-start justify-center p-4 pt-[10vh] overflow-y-auto" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={`w-full ${wide ? "max-w-[720px]" : "max-w-[460px]"} bg-[#1f1f1f] border border-[#454545] rounded-md shadow-[0_0_8px_2px_#0000005c] overflow-hidden`}>{children}</div>
     </div>
   );
 }

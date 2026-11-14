@@ -88,6 +88,8 @@ export interface Env {
      */
     landing(sender: string, publicKey: string, blockHash: string, nonce: bigint): Promise<"possible" | "impossible" | "ambiguous">;
   };
+  /** EVM address of the wallet connected in the browser (MetaMask), when there is one. */
+  evmWallet?: `0x${string}`;
   /** Any chain a script can name in chainsig:*. Throws with the available names if unknown. */
   chain(name: string): ForeignChain;
   chainNames(): string[];

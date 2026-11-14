@@ -32,6 +32,7 @@ Options
   --kill-at <n>:<status>   exit abruptly right after step n reaches signed|broadcast|confirmed (for demos)
   --state-dir <dir>   where checkpoints live (default: .nearcast)
   --port <n>          ui: port to listen on, localhost only (default: 4040)
+  --workspace <dir>   ui: folder of your .cast files shown in the explorer (default: ./scripts)
 
 Keys: NEAR_PRIVATE_KEY, or ~/.near-credentials/<network>/<account>.json. A full-access key is
 required to run; plan works with just an account id. Mainnet asks you to type "send on mainnet".`;
@@ -47,6 +48,7 @@ interface Args {
   killAt?: { step: number; status: StepStatus };
   stateDir: string;
   port: number;
+  workspace?: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -63,6 +65,7 @@ function parseArgs(argv: string[]): Args {
     else if (x === "--network") a.network = val();
     else if (x === "--state-dir") a.stateDir = val();
     else if (x === "--port") a.port = Number(val());
+    else if (x === "--workspace") a.workspace = val();
     else if (x === "--yes" || x === "-y") a.yes = true;
     else if (x === "--fresh") a.fresh = true;
     else if (x === "--retry-failed") a.retryFailed = true;
@@ -99,11 +102,11 @@ async function main(): Promise<number> {
     const baseDir = args.file ? dirname(resolve(args.file)) : process.cwd();
     const defaultAccount = args.account ?? process.env.NEAR_ACCOUNT_ID ?? ring(args.network).accounts()[0];
     const url = await startUi({
-      makeEnv(network, account, signer) {
+      makeEnv(network, account, signer, evmAccount) {
         const keys = ring(network);
         // Wallet mode: the wallet account never signs with a local key, even if one exists.
         const scoped = signer === "wallet" ? { ...keys, has: (id: string) => id !== account && keys.has(id) } : keys;
-        return liveEnv({ network, accountId: account, keys: scoped, baseDir });
+        return { ...liveEnv({ network, accountId: account, keys: scoped, baseDir }), evmWallet: evmAccount };
       },
       keyAccounts: (n) => ring(n).accounts(),
       defaultNetwork: args.network,
@@ -112,8 +115,10 @@ async function main(): Promise<number> {
       port: args.port,
       initialScript: args.file ? readFileSync(args.file, "utf8") : undefined,
       examplesDir: join(dirname(fileURLToPath(import.meta.url)), "..", "examples"),
+      workspaceDir: resolve(args.workspace ?? "scripts"),
     });
     console.log(`Nearcast UI: ${url}`);
+    console.log(`Workspace: ${resolve(args.workspace ?? "scripts")} (your .cast files)`);
     console.log(`Key accounts on ${args.network}: ${ring(args.network).accounts().join(", ") || "(none; connect a wallet)"}`);
     console.log("Local only. It can sign with local keys, so do not expose the port. Ctrl-C to stop.");
     return new Promise<number>(() => {});

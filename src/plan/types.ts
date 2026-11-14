@@ -170,7 +170,21 @@ export interface IntentsWaitStep extends StepBase {
   correlationId?: string;
 }
 
-export type Step = NearTxStep | EvmTxStep | BtcTxStep | SolTxStep | DelegateSignStep | IntentsWaitStep | AssertStep;
+/** An EVM transaction the browser's EVM wallet (MetaMask) signs and sends from the user's own address. */
+export interface EvmWalletTxStep extends StepBase {
+  type: "evm-wallet-tx";
+  chain: Chain & { kind: "evm" };
+  from: `0x${string}`;
+  to: `0x${string}`;
+  data: `0x${string}`;
+  value: bigint;
+  decoded: string;
+  /** Simulated with eth_estimateGas from `from` at plan time; the wallet sets the real nonce and fees. */
+  gas: bigint;
+  maxFee: bigint;
+}
+
+export type Step = EvmWalletTxStep | NearTxStep | EvmTxStep | BtcTxStep | SolTxStep | DelegateSignStep | IntentsWaitStep | AssertStep;
 
 /** Automatic preflight checks (funding, balances). `warn` does not block a run. */
 export interface Check {

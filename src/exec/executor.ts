@@ -7,6 +7,7 @@ import type {
   BtcTxStep,
   Checkpoint,
   EvmTxStep,
+  EvmWalletTxStep,
   IntentsWaitStep,
   NearAction,
   NearTxStep,
@@ -15,7 +16,7 @@ import type {
   StepState,
   StepStatus,
 } from "../plan/types.js";
-import type { Store } from "./checkpoint.js";
+import type { Store } from "./store.js";
 import { canMove, nextAction, unseenNearTx } from "./machine.js";
 
 export type WalletResult = { txHash: string } | { error: string };
@@ -36,6 +37,8 @@ export interface ExecOptions {
    * local key. Resolves with the sent transaction's hash, or an error when nothing was sent.
    */
   wallet?: (step: NearTxStep, actions: NearAction[]) => Promise<WalletResult>;
+  /** The browser's EVM wallet (MetaMask) signs and sends an `evm-wallet-tx` step from the user's address. */
+  evmWallet?: (step: EvmWalletTxStep) => Promise<WalletResult>;
 }
 
 export type Outcome =
@@ -160,6 +163,28 @@ export async function execute(cp: Checkpoint, env: Env, store: Store, opts: Exec
         return { kind: "waiting", step, reason: r.reason };
       }
 
+      if (step.type === "evm-wallet-tx" && action === "sign") {
+        if (st.handoff) {
+          return {
+            kind: "waiting", step, handoff: true,
+            reason: `your EVM wallet was asked to send step ${n} at ${st.handoff} but its answer was never recorded. ` +
+              "Check the wallet's activity: give the transaction hash if it was sent, or confirm it was not.",
+          };
+        }
+        if (!opts.evmWallet) return { kind: "failed", step, error: "this step is sent by your EVM wallet (MetaMask): run it from the web UI" };
+        note(step, { handoff: new Date().toISOString(), attempts: (st.attempts ?? 0) + 1 }, "handed to EVM wallet");
+        log(`step ${n}: waiting for your wallet to send it on ${step.chain.label}`);
+        const r = await opts.evmWallet(step);
+        if ("txHash" in r) {
+          move(step, { status: "broadcast", txHash: r.txHash, handoff: undefined, error: undefined }, "wallet");
+          log(`step ${n}: wallet sent ${r.txHash}`);
+        } else {
+          move(step, { status: "failed", error: `wallet: ${r.error} (nothing was sent)`, handoff: undefined });
+          return { kind: "failed", step, error: `wallet: ${r.error} (nothing was sent)` };
+        }
+        continue;
+      }
+
       if (action === "sign") {
         if (step.type === "near-tx") {
           let actions = step.actions;
@@ -205,7 +230,8 @@ export async function execute(cp: Checkpoint, env: Env, store: Store, opts: Exec
         }
         let signed: { raw: string; hash: string };
         try {
-          signed = await assemble(step as EvmTxStep | BtcTxStep | SolTxStep, cp, env);
+          if (step.type === "evm-wallet-tx") throw new Error("internal: wallet steps are never assembled");
+        signed = await assemble(step as EvmTxStep | BtcTxStep | SolTxStep, cp, env);
         } catch (e) {
           const error = (e as Error).message;
           if (/^no MPC signature yet/.test(error)) return { kind: "failed", step, error };
@@ -232,6 +258,7 @@ export async function execute(cp: Checkpoint, env: Env, store: Store, opts: Exec
       const o = { pollMs, timeoutMs, grace, sleep };
       const r = step.type === "near-tx" ? await pollNear(step, st, env, o)
         : step.type === "evm-tx" ? await pollEvm(step, st, env, o)
+        : step.type === "evm-wallet-tx" ? await pollEvmWallet(step, st, env, o)
         : step.type === "btc-tx" ? await pollBtc(step, st, env, o)
         : await pollSol(step as SolTxStep, st, env, o);
       if (r.kind === "confirmed") {
@@ -388,6 +415,16 @@ async function pollEvm(step: EvmTxStep, st: StepState, env: Env, o: PollOpts): P
     await o.sleep(o.pollMs);
   }
   return { kind: "waiting", reason: `${step.chain.label} transaction ${st.txHash} is not mined yet (fee cap may be below the current base fee)` };
+}
+
+async function pollEvmWallet(step: EvmWalletTxStep, st: StepState, env: Env, o: PollOpts): Promise<PollResult> {
+  for (let waited = 0; waited <= o.timeoutMs; waited += o.pollMs) {
+    const r = await env.evm.receipt(step.chain, st.txHash as `0x${string}`);
+    if (r.state === "success") return { kind: "confirmed", feePaid: r.feePaid };
+    if (r.state === "reverted") return { kind: "failed", feePaid: r.feePaid, error: `reverted on ${step.chain.label}; gas was spent. Earlier steps are NOT undone.` };
+    await o.sleep(o.pollMs);
+  }
+  return { kind: "waiting", reason: `${step.chain.label} transaction ${st.txHash} from your wallet is not mined yet` };
 }
 
 async function pollBtc(step: BtcTxStep, st: StepState, env: Env, o: PollOpts): Promise<PollResult> {

@@ -19,15 +19,19 @@ export function HandoffDialog({ h, network, busy, onSent, onNotSent, onClose }: 
           A wallet request for <span className="text-text">{h.account}</span> started {new Date(h.since).toLocaleString()} and never reported back.
           Check the wallet or explorer before choosing.
         </div>
-        <a className="text-accent hover:underline" target="_blank" rel="noreferrer"
-          href={`https://${network === "testnet" ? "testnet." : ""}nearblocks.io/address/${h.account}`}>
-          recent transactions ↗
-        </a>
+        {h.account.startsWith("0x") ? (
+          <div className="text-dim">Look in your wallet's Activity tab (MetaMask) for a transaction to this step's address.</div>
+        ) : (
+          <a className="text-accent hover:underline" target="_blank" rel="noreferrer"
+            href={`https://${network === "testnet" ? "testnet." : ""}nearblocks.io/address/${h.account}`}>
+            recent transactions ↗
+          </a>
+        )}
         <div className="flex gap-2">
           <input
             value={hash}
             onChange={(e) => setHash(e.target.value.trim())}
-            placeholder="transaction hash"
+            placeholder={h.account.startsWith("0x") ? "0x… transaction hash" : "transaction hash"}
             className="flex-1 h-8 px-2 bg-bg border border-line-2 rounded-[3px] outline-none focus:border-dim"
           />
           <Button variant="primary" disabled={busy || hash.length < 32} onClick={() => onSent(hash)}>It was sent</Button>

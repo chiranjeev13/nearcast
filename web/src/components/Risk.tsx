@@ -17,18 +17,3 @@ export function modeOf(snap: Snapshot): "SIMULATE-ONLY" | "EXECUTING" | "DONE" |
   if (snap.run === "unfinished") return "STOPPED";
   return "SIMULATE-ONLY";
 }
-
-const MODE_CLS = { "SIMULATE-ONLY": "text-dim", EXECUTING: "text-accent", DONE: "text-accent", STOPPED: "text-warn" } as const;
-
-/** `Mode: SIMULATE-ONLY | Network: testnet | Risk: [STATE-CHANGING]` */
-export function ModeLine({ snap }: { snap: Snapshot }) {
-  const v = snap.view!;
-  const mode = modeOf(snap);
-  return (
-    <div className="text-[11.5px] font-mono whitespace-nowrap overflow-hidden text-ellipsis">
-      <span className="text-faint">Mode: </span><span className={MODE_CLS[mode]}>{mode}</span>
-      <span className="text-faint"> | Network: </span><span className={v.network === "mainnet" ? "text-bad font-bold" : ""}>{v.network}</span>
-      <span className="text-faint"> | Risk: </span><RiskTag r={v.risk} />
-    </div>
-  );
-}

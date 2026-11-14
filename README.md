@@ -40,7 +40,7 @@ In the UI, a connected wallet (Meteor, HOT, MyNearWallet, Intear, MetaMask) can 
 | `stake` | staking pools (deposit, unstake, withdraw) and the native Stake action |
 | `meta` | NEP-366: `meta:relay` (another account pays), `meta:sign` (hand to a relayer), `meta:submit` |
 | `chainsig` | `chainsig:on <evm chain> ( exec … )`, `chainsig:transfer` on Ethereum, Base, Arbitrum, Optimism, Polygon, BNB, Bitcoin, Solana |
-| `intents` | NEAR Intents (mainnet): `intents:swap 10 base:USDC arbitrum:USDC` bridges or swaps across NEAR, EVM chains, Bitcoin, Solana; your NEAR account signs the deposit |
+| `intents` | NEAR Intents (mainnet): `intents:swap 10 from base:USDC to arbitrum:USDC` bridges or swaps across NEAR, EVM chains, Bitcoin, Solana. Your NEAR account signs the deposit, or add `--from-wallet` to pay from the MetaMask EOA connected in the UI |
 
 ## Guarantees
 

@@ -100,7 +100,11 @@ class NcrParser extends EmbeddedActionsParser {
       {
         ALT: () => {
           const o = this.CONSUME(Opt);
-          const value = this.SUBRULE(this.expr);
+          // A flag may stand alone (`--from-wallet`): then its value is `true`.
+          let value: Expr = { kind: "word", value: "true", loc: locOf(o) };
+          this.OPTION(() => {
+            value = this.SUBRULE(this.expr);
+          });
           return { t: "opt" as const, name: o.image.slice(2), value, loc: locOf(o) };
         },
       },

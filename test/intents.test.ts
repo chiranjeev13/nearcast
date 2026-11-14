@@ -70,6 +70,63 @@ describe("NEAR Intents", () => {
     await expect(plan("load intents\nintents:swap 10 from base:USDC", mainnet())).rejects.toThrow(/usage: intents:swap <amount> from/);
   });
 
+  it("--from-wallet: the user's own EVM wallet pays; refund and delivery go back to it; no NEAR, no MPC", async () => {
+    const env = mainnet();
+    const EOA = "0x3333333333333333333333333333333333333333" as const;
+    (env as any).evmWallet = EOA;
+    const p = await plan("load intents\nintents:swap 100 from base:USDC to arbitrum:USDC --from-wallet", env);
+    expect(p.steps.map((s) => s.type)).toEqual(["assert", "evm-wallet-tx", "intents-wait"]);
+    expect(env.intentQuotes[0]).toMatchObject({ refundTo: EOA, recipient: EOA, amount: "100000000" });
+    const dep = p.steps[1] as any;
+    expect(dep).toMatchObject({ from: EOA, to: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", value: 0n });
+    expect(dep.gas).toBe(65_000n); // simulated from the EOA (fake estimate 50k x 1.3)
+    // The fake wallet holds 5 USDC: the plan is blocked, before anything is signed.
+    expect(p.checks.some((c) => c.level === "fail" && /your wallet 0x3333.* holds 5 USDC/.test(c.description))).toBe(true);
+    expect(planView(p).steps[1]).toMatchObject({ kind: "evm", signedWith: "wallet", risk: ["state-changing", "irreversible", "high-value"] });
+    expect(env.calls.some((c) => c.startsWith("near.sign"))).toBe(false);
+  });
+
+  it("--from-wallet runs through the browser wallet, then waits for delivery", async () => {
+    const env = mainnet();
+    (env as any).evmWallet = "0x3333333333333333333333333333333333333333";
+    const p = await plan("load intents\nintents:swap 1 from base:USDC to arbitrum:USDC --from-wallet", env);
+    const store = memoryStore();
+    const cp = newCheckpoint(p);
+    store.save(cp);
+    const asked: any[] = [];
+    const hash = `0x${"ab".repeat(32)}`;
+    env.evmTxs.set(hash, { state: "success", feePaid: 1000n, blockNumber: 1n });
+    const out = await execute(cp, env, store, { ...FAST, evmWallet: async (s) => (asked.push(s), { txHash: hash }) });
+    expect(out.kind).toBe("done");
+    expect(asked).toHaveLength(1);
+    expect(cp.state.s2).toMatchObject({ status: "confirmed", txHash: hash });
+    expect(env.intentSubmits).toEqual([hash]);
+  });
+
+  it("--from-wallet: rejected in the wallet = nothing sent; a crash mid-prompt asks a human", async () => {
+    const env = mainnet();
+    (env as any).evmWallet = "0x3333333333333333333333333333333333333333";
+    const p = await plan("load intents\nintents:swap 1 from base:USDC to arbitrum:USDC --from-wallet", env);
+    let store = memoryStore();
+    let cp = newCheckpoint(p);
+    store.save(cp);
+    expect(await execute(cp, env, store, { ...FAST, evmWallet: async () => ({ error: "User rejected" }) })).toMatchObject({ kind: "failed", error: "wallet: User rejected (nothing was sent)" });
+    store = memoryStore();
+    cp = newCheckpoint(p);
+    store.save(cp);
+    await expect(execute(cp, env, store, { ...FAST, evmWallet: () => Promise.reject(new Error("killed")) })).rejects.toThrow("killed");
+    const again = store.load()!;
+    expect(await execute(again, env, store, { ...FAST, evmWallet: async () => ({ txHash: "0x" }) })).toMatchObject({ kind: "waiting", handoff: true });
+  });
+
+  it("--from-wallet needs a connected EVM wallet and an EVM source chain", async () => {
+    await expect(plan("load intents\nintents:swap 1 from base:USDC to arbitrum:USDC --from-wallet", mainnet())).rejects.toThrow(/needs an EVM wallet/);
+    const env = mainnet();
+    (env as any).evmWallet = "0x3333333333333333333333333333333333333333";
+    await expect(plan("load intents\nintents:swap 1 from near:USDC to arbitrum:USDC --from-wallet", env)).rejects.toThrow(/near is not one/);
+    await expect(plan("load intents\nintents:swap 1 from base:USDC to solana:SOL --from-wallet", env)).rejects.toThrow(/give the recipient on solana/);
+  });
+
   it("native coins: ETH on Base is a plain value deposit", async () => {
     const { p } = await run("load intents\nintents:swap 0.01 base:ETH solana:SOL");
     expect(p.steps[2]).toMatchObject({ type: "evm-tx", to: "0x1111111111111111111111111111111111111111", value: 10n ** 16n, data: "0x" });

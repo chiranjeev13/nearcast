@@ -1,69 +1,59 @@
-import type { InfoResponse, Network, SignerMode, Snapshot } from "@api";
+import type { Network, SignerMode, Snapshot } from "@api";
 import { modeOf } from "./Risk.tsx";
 import { short } from "./ui.tsx";
 
-/** IDE-style status bar: network, signer, account on the left; run state on the right. */
+/** VS Code's status bar: remote-style network item, account, problems; cursor and language on the right. */
 export function StatusBar(p: {
-  info: InfoResponse | null;
   network: Network;
-  setNetwork: (n: Network) => void;
+  onNetwork: () => void;
   signer: SignerMode;
-  setSigner: (s: SignerMode) => void;
-  keyAccount: string;
-  setKeyAccount: (a: string) => void;
-  walletAccount: string | null;
-  walletLoading: boolean;
-  onConnect: () => void;
-  onDisconnect: () => void;
+  account: string;
+  evmAccount: string | null;
+  onAccount: () => void;
+  errors: number;
+  warnings: number;
+  onProblems: () => void;
+  cursor: { line: number; col: number };
   snap: Snapshot | null;
   message: { text: string; bad: boolean } | null;
 }) {
-  const keys = p.info?.keyAccounts[p.network] ?? [];
-  const networks = p.info?.networks ?? ["testnet", "mainnet"];
   const mainnet = p.network === "mainnet";
-  const cell = "h-full px-3 flex items-center gap-1.5 hover:bg-white/5 cursor-pointer whitespace-nowrap";
-  const v = p.snap?.view;
+  const item = "h-full px-2 flex items-center gap-1 hover:bg-white/10 cursor-pointer whitespace-nowrap";
   return (
-    <footer className={`h-7 shrink-0 flex items-stretch text-[11.5px] border-t ${mainnet ? "border-bad/60 bg-bad/10" : "border-line bg-panel"}`}>
+    <footer className="h-[22px] shrink-0 flex items-stretch text-[12px] bg-panel border-t border-line text-text">
       <button
-        className={`${cell} font-medium ${mainnet ? "text-bad" : "text-accent"}`}
-        title="Switch network"
-        onClick={() => p.setNetwork(networks[(networks.indexOf(p.network) + 1) % networks.length] as Network)}
+        onClick={p.onNetwork}
+        title="Switch NEAR network"
+        className={`h-full px-2.5 flex items-center gap-1 font-medium cursor-pointer ${mainnet ? "bg-bad text-white" : "bg-accent text-accent-ink"}`}
       >
-        <span className={`w-1.5 h-1.5 rounded-full ${mainnet ? "bg-bad" : "bg-accent"}`} />
+        <i className="codicon codicon-remote" style={{ fontSize: 14 }} />
         NEAR {p.network}
       </button>
-      <button
-        className={`${cell} text-dim`}
-        title={keys.length ? "Switch signer: local key or browser wallet" : `No local key for ${p.network}: wallet only`}
-        onClick={() => keys.length && p.setSigner(p.signer === "key" ? "wallet" : "key")}
-      >
-        signer <span className="text-text">{p.signer}</span>
+      <button className={item} onClick={p.onAccount} title="Signer and accounts (Run and Simulate view)">
+        <i className={`codicon ${p.signer === "key" ? "codicon-key" : "codicon-account"}`} style={{ fontSize: 14 }} />
+        {p.account ? short(p.account, 8) : "no account"}
       </button>
-      {p.signer === "key" ? (
-        keys.length > 1 ? (
-          <select value={p.keyAccount} onChange={(e) => p.setKeyAccount(e.target.value)} className={`${cell} bg-transparent text-text outline-none font-mono`}>
-            {keys.map((k) => <option key={k} value={k}>{short(k, 10)}</option>)}
-          </select>
-        ) : (
-          <span className={`${cell} cursor-default font-mono text-text`} title={p.keyAccount}>{p.keyAccount ? short(p.keyAccount, 8) : "no key"}</span>
-        )
-      ) : p.walletAccount ? (
-        <button className={`${cell} font-mono text-text`} onClick={p.onDisconnect} title={`${p.walletAccount} · click to disconnect`}>
-          <span className="w-1.5 h-1.5 rounded-full bg-accent" />{short(p.walletAccount, 8)}
-        </button>
-      ) : (
-        <button className={`${cell} text-accent`} onClick={p.onConnect} disabled={p.walletLoading}>
-          {p.walletLoading ? "loading wallets…" : "connect wallet"}
-        </button>
+      {p.evmAccount && (
+        <span className={item} title={`EVM wallet ${p.evmAccount}`}>
+          <i className="codicon codicon-plug" style={{ fontSize: 14 }} />
+          {short(p.evmAccount, 6)}
+        </span>
       )}
-      <div className={`flex-1 min-w-0 px-3 flex items-center truncate ${p.message?.bad ? "text-bad" : "text-dim"}`}>{p.message?.text}</div>
-      {v && p.snap && (
-        <div className="px-3 flex items-center gap-3 text-dim whitespace-nowrap">
-          <span>{v.steps.length} steps · {v.txCount} tx · {v.chainCount} chain{v.chainCount === 1 ? "" : "s"}</span>
-          <span className="text-text">{modeOf(p.snap)}</span>
-        </div>
+      <button className={item} onClick={p.onProblems} title="Problems">
+        <i className="codicon codicon-error" style={{ fontSize: 14 }} /> {p.errors}
+        <i className="codicon codicon-warning ml-1" style={{ fontSize: 14 }} /> {p.warnings}
+      </button>
+      <div className={`flex-1 min-w-0 px-2 flex items-center truncate ${p.message?.bad ? "text-bad" : "text-dim"}`}>{p.message?.text}</div>
+      {p.snap?.running && (
+        <span className={item}>
+          <i className="codicon codicon-loading codicon-modifier-spin" style={{ fontSize: 14 }} /> running
+        </span>
       )}
+      <span className={item}>Ln {p.cursor.line}, Col {p.cursor.col}</span>
+      <span className={item}>Spaces: 2</span>
+      <span className={item}>Cast</span>
+      {p.snap?.view && <span className={item}>{modeOf(p.snap)}</span>}
+      <span className={item} title="Notifications"><i className="codicon codicon-bell" style={{ fontSize: 14 }} /></span>
     </footer>
   );
 }

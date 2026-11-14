@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { KeyPair, PublicKey } from "@near-js/crypto";
 import {
   actionCreators,
@@ -16,6 +15,7 @@ import {
 } from "@near-js/transactions";
 import { baseDecode, baseEncode } from "@near-js/utils";
 import { deserialize } from "borsh";
+import { sha256 as portableSha256 } from "../portable.js";
 import type { NearAction } from "../plan/types.js";
 
 export interface SignedNearTx {
@@ -34,7 +34,7 @@ export interface DelegateContext {
   maxBlockHeight: bigint;
 }
 
-const sha256 = (b: Uint8Array): Uint8Array => new Uint8Array(createHash("sha256").update(b).digest());
+const sha256 = (b: Uint8Array): Uint8Array => portableSha256(b);
 
 /** Plan action -> protocol action. `delegate` needs the sender's key, so it goes through NearSigner. */
 export function toProtocolAction(a: NearAction): Action {

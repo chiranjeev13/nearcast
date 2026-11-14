@@ -137,7 +137,9 @@ function entryCompletion(e: EntryDoc, boost: number): Completion {
     boost,
   };
   const snip = snippetFor(e);
-  return snip.includes("${") ? snippetCompletion(snip, base) : base;
+  // Carried along for the Monaco adapter: the raw template and the docs entry.
+  Object.assign(base, { snippet: snip.includes("${") ? snip : undefined, entry: e });
+  return snip.includes("${") ? Object.assign(snippetCompletion(snip, base), { snippet: snip, entry: e }) : base;
 }
 
 function chainCompletions(chains: ChainDoc[]): Completion[] {
@@ -167,6 +169,8 @@ function intentAssetCompletions(docs: Docs, typed: string): Completion[] {
         view.dispatch({ changes: { from, to, insert: `${chain}:` }, selection: { anchor: from + chain.length + 1 } });
         startCompletion(view);
       },
+      // Monaco adapter: insert the label, then reopen suggestions.
+      retrigger: true,
     }));
     return [...chainOpts, ...assets.map((a) => assetOption(a))];
   }

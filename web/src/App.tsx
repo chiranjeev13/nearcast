@@ -1,19 +1,21 @@
-import { snippet } from "@codemirror/autocomplete";
-import type { EditorView } from "@codemirror/view";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Ctx, EntryDoc, InfoResponse, Network, SignerMode, Snapshot } from "@api";
-import { DocsPane } from "./components/DocsPane.tsx";
-import { Editor } from "./components/Editor.tsx";
+import { ActivityBar, type View } from "./components/ActivityBar.tsx";
+import { Editor, type EditorApi, type Marker } from "./components/Editor.tsx";
 import { HandoffDialog } from "./components/HandoffDialog.tsx";
 import { Confetti } from "./components/Confetti.tsx";
-import { FlowPanel } from "./components/FlowPanel.tsx";
-import { Header } from "./components/Header.tsx";
-import { Rail } from "./components/Rail.tsx";
+import { Landing } from "./components/Landing.tsx";
+import { WalletStrip } from "./components/FlowPanel.tsx";
+import { Panel, problemsOf, type PanelTab } from "./components/Panel.tsx";
+import { Sash } from "./components/Sash.tsx";
+import { SideBar } from "./components/SideBar.tsx";
 import { ReviewModal } from "./components/ReviewModal.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
 import { api, ApiError } from "./lib/api.ts";
 import { snippetFor } from "./lib/completions.ts";
+import { useDocuments } from "./lib/documents.ts";
 import { session, store } from "./lib/storage.ts";
+import { connectEvm, currentEvm, hasEvmWallet, sendEvm, watchEvm } from "./lib/evmWallet.ts";
 import { disconnect, getWallet, sendWithWallet, splitsBatches, watchAccount, type WalletAccount, type WalletHandle } from "./lib/wallet.ts";
 
 interface Pending {
@@ -28,10 +30,22 @@ export function App() {
   const [network, setNetwork] = useState<Network>(() => store.get("network", "testnet"));
   const [signer, setSigner] = useState<SignerMode>(() => store.get("signer", "key"));
   const [keyAccount, setKeyAccount] = useState<string>(() => store.get("keyAccount", ""));
-  const [source, setSource] = useState<string>(() => store.get("source", ""));
-  const [title, setTitle] = useState<string>(() => store.get("title", "Untitled"));
-  const [docsOpen, setDocsOpen] = useState<boolean>(() => store.get("docsOpen", true));
-  const [flowOpen, setFlowOpen] = useState<boolean>(() => store.get("flowOpen", true));
+  const [creating, setCreating] = useState(false);
+  // "/" is the landing page; "#editor" is the workbench. Back/forward move between them.
+  const [page, setPage] = useState<"home" | "editor">(() => (location.hash === "#editor" ? "editor" : "home"));
+  useEffect(() => {
+    const on = () => setPage(location.hash === "#editor" ? "editor" : "home");
+    window.addEventListener("hashchange", on);
+    return () => window.removeEventListener("hashchange", on);
+  }, []);
+  const [view, setView] = useState<View>(() => store.get("view", "explorer"));
+  const [sideOpen, setSideOpen] = useState<boolean>(() => store.get("sideOpen", true));
+  const [panelTab, setPanelTab] = useState<PanelTab>("flow");
+  const [cursor, setCursor] = useState({ line: 1, col: 1 });
+  const [sideW, setSideW] = useState<number>(() => store.get("sideW", 300));
+  const [panelH, setPanelH] = useState<number>(() => store.get("panelH", 300));
+  useEffect(() => store.set("sideW", sideW), [sideW]);
+  useEffect(() => store.set("panelH", panelH), [panelH]);
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [planErr, setPlanErr] = useState<{ msg: string; line: number | null } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -40,9 +54,19 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [wallet, setWallet] = useState<WalletHandle | null>(null);
   const [walletAcct, setWalletAcct] = useState<WalletAccount | null>(null);
+  // The browser's EVM wallet (MetaMask), for steps that spend from the user's own EVM address.
+  const [evmAcct, setEvmAcct] = useState<string | null>(null);
+  useEffect(() => {
+    currentEvm().then(setEvmAcct);
+    return watchEvm(setEvmAcct);
+  }, []);
   const [walletLoading, setWalletLoading] = useState(false);
   const [hideHandoff, setHideHandoff] = useState<string | null>(null);
-  const viewRef = useRef<EditorView | null>(null);
+  const editorRef = useRef<EditorApi | null>(null);
+  const onDocError = useCallback((m: string) => setNotice(m), []);
+  const docs = useDocuments(info, onDocError);
+  const { source, setSource } = docs;
+  const title = docs.activeTab?.name.replace(/\.cast$/, "") ?? "";
   const handled = useRef(new Set<string>());
 
   // ---------------------------------------------------------------- boot
@@ -52,7 +76,6 @@ export function App() {
       (i) => {
         setInfo(i);
         setNetwork((n) => (i.networks.includes(n) ? n : i.defaultNetwork));
-        setSource((s) => s || i.initial);
       },
       (e) => setFatal(e.message),
     );
@@ -68,13 +91,9 @@ export function App() {
   useEffect(() => store.set("network", network), [network]);
   useEffect(() => store.set("signer", signer), [signer]);
   useEffect(() => store.set("keyAccount", keyAccount), [keyAccount]);
-  useEffect(() => store.set("title", title), [title]);
-  useEffect(() => store.set("docsOpen", docsOpen), [docsOpen]);
-  useEffect(() => store.set("flowOpen", flowOpen), [flowOpen]);
-  useEffect(() => {
-    const t = setTimeout(() => store.set("source", source), 300);
-    return () => clearTimeout(t);
-  }, [source]);
+
+  useEffect(() => store.set("view", view), [view]);
+  useEffect(() => store.set("sideOpen", sideOpen), [sideOpen]);
 
   // ---------------------------------------------------------------- wallet
 
@@ -103,9 +122,11 @@ export function App() {
     };
   }, [signer, network]);
 
-  const account = signer === "wallet" ? walletAcct?.accountId ?? "" : keyAccount;
+  // With only MetaMask connected, the server uses its NEAR-side (ETH-implicit) account.
+  const account = signer === "wallet" ? walletAcct?.accountId ?? (evmAcct ? evmAcct.toLowerCase() : "") : keyAccount;
   const walletId = signer === "wallet" ? walletAcct?.walletId ?? undefined : undefined;
-  const ctx = useMemo<Ctx>(() => ({ network, account, signer, walletId }), [network, account, signer, walletId]);
+  const evmAccount = evmAcct ?? undefined;
+  const ctx = useMemo<Ctx>(() => ({ network, account, signer, walletId, evmAccount }), [network, account, signer, walletId, evmAccount]);
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
 
@@ -145,11 +166,12 @@ export function App() {
     try {
       const s = await api.plan(ctx, source, fresh);
       setSnap(s);
-      setFlowOpen(true);
+      setPanelTab("flow");
       return s;
     } catch (e) {
       const err = e as ApiError;
       setPlanErr({ msg: err.message, line: err.line ?? null });
+      setPanelTab("problems");
       return null;
     } finally {
       setPlanning(false);
@@ -182,7 +204,21 @@ export function App() {
 
   const approve = async () => {
     const req = snap?.walletRequest;
-    if (!req || !wallet || !snap) return;
+    if (!req || !snap) return;
+    if (req.kind === "evm") {
+      if (handled.current.has(req.id) || session.has(`wallet:${req.id}`)) return;
+      handled.current.add(req.id);
+      session.mark(`wallet:${req.id}`);
+      let result: { txHash?: string; error?: string };
+      try {
+        result = { txHash: await sendEvm(req) };
+      } catch (e: any) {
+        result = { error: e?.message || "rejected in wallet" };
+      }
+      await guard(() => api.wallet(ctx, snap.hash, req.id, result));
+      return;
+    }
+    if (!wallet) return;
     if (handled.current.has(req.id) || session.has(`wallet:${req.id}`)) return;
     handled.current.add(req.id);
     session.mark(`wallet:${req.id}`);
@@ -203,30 +239,38 @@ export function App() {
   // ---------------------------------------------------------------- editor helpers
 
   const insert = (e: EntryDoc, what: "usage" | "example") => {
-    const view = viewRef.current;
-    if (!view) return;
-    const pos = view.state.selection.main.head;
-    const line = view.state.doc.lineAt(pos);
-    const atEmpty = line.text.trim() === "";
-    const from = atEmpty ? line.from : line.to;
-    const prefix = atEmpty ? "" : "\n";
-    if (what === "example" && e.example) {
-      view.dispatch({ changes: { from, to: atEmpty ? line.to : from, insert: prefix + e.example }, scrollIntoView: true });
-    } else {
-      const tpl = (prefix + snippetFor(e)).replace(/\t/g, "  ");
-      snippet(tpl)({ state: view.state, dispatch: view.dispatch } as any, null, from, atEmpty ? line.to : from);
-    }
-    view.focus();
+    const ed = editorRef.current;
+    if (!ed) return;
+    if (what === "example" && e.example) ed.insert(e.example, false);
+    else ed.insert(snippetFor(e), true);
   };
 
-  const openExample = (name: string) => {
-    const ex = info?.examples.find((x) => x.name === name);
-    if (!ex) return;
-    setSource(ex.source);
-    setTitle(name.replace(/\.cast$/, ""));
+  // Switching documents starts from a clean preview.
+  useEffect(() => {
     setSnap(null);
     setPlanErr(null);
+  }, [docs.active]);
+
+  const saveActive = () => {
+    const t = docs.activeTab;
+    if (!t || t.kind === "file") return; // files save themselves
+    const name = window.prompt("Save as (in the workspace)", t.kind === "example" ? t.name : "script.cast");
+    if (name) docs.saveAs(name);
   };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.altKey && e.code === "KeyN") {
+        e.preventDefault();
+        setView("explorer");
+        setSideOpen(true);
+        setCreating(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
 
   // ---------------------------------------------------------------- render
 
@@ -235,7 +279,12 @@ export function App() {
   const splitWarning = ethWallet && v?.steps.some((s) => s.atomic && s.signedWith === "wallet")
     ? "MetaMask (NEP-518) sends each action as its own transaction: batches are not atomic."
     : undefined;
-  const wrongAccount = snap?.walletRequest && walletAcct && snap.walletRequest.signerId !== walletAcct.accountId
+  const evmReq = snap?.walletRequest?.kind === "evm" ? snap.walletRequest : null;
+  const wrongEvm = evmReq
+    ? !evmAcct ? "Connect your EVM wallet (MetaMask) to continue."
+      : evmAcct.toLowerCase() !== evmReq.signerId.toLowerCase() ? `MetaMask is on ${evmAcct}; this step needs ${evmReq.signerId}.` : undefined
+    : undefined;
+  const wrongAccount = evmReq ? wrongEvm : snap?.walletRequest && walletAcct && snap.walletRequest.signerId !== walletAcct.accountId
     ? `Wallet is ${walletAcct.accountId}; this step needs ${snap.walletRequest.signerId}.`
     : snap?.walletRequest && !walletAcct ? "Connect the wallet to continue." : undefined;
 
@@ -252,87 +301,187 @@ export function App() {
     if (snap?.run === "complete" && was && was.startsWith(`${snap.hash}:`) && !was.includes(":complete:")) setParty(`${snap.hash}:${Date.now()}`);
   }, [snap?.hash, snap?.run, snap?.running]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const status = planErr
-    ? { text: planErr.msg, bad: true }
-    : notice
-      ? { text: notice, bad: true }
-      : null;
+  const status = notice ? { text: notice, bad: true } : null;
+  const problems = problemsOf(snap, planErr);
+  const markers: Marker[] = problems
+    .filter((p) => p.line && p.level !== "info")
+    .map((p) => ({ line: p.line!, message: p.message, severity: p.level === "error" ? "error" : "warning" }));
+  const errors = problems.filter((p) => p.level === "error").length;
+  const warnings = problems.filter((p) => p.level === "warning").length;
+  const selectView = (vw: View) => {
+    if (sideOpen && view === vw) setSideOpen(false);
+    else {
+      setView(vw);
+      setSideOpen(true);
+    }
+  };
+  const actions = {
+    review: () => setReviewing(true),
+    resume: (retry: boolean) => snap && guard(() => api.resume(ctx, snap.hash, retry)),
+    kill: () => snap && guard(async () => void (await api.kill(ctx, snap.hash))),
+    fresh: async () => {
+      const s = await plan(true);
+      if (s?.view && s.run === "none") setReviewing(true);
+    },
+    approve,
+  };
+
+  const editorGroup = (
+    <div className="h-full min-h-0 flex flex-col bg-bg">
+      <div className="h-[35px] shrink-0 flex bg-panel border-b border-line">
+        <div className="flex min-w-0 overflow-x-auto">
+          {docs.tabs.map((t) => {
+            const on = t.key === docs.active;
+            const isDirty = docs.dirty.has(t.key) && t.kind !== "file";
+            return (
+              <div
+                key={t.key}
+                onClick={() => docs.activate(t.key)}
+                onAuxClick={(e) => e.button === 1 && docs.close(t.key)}
+                className={`group relative h-full pl-3 pr-1.5 flex items-center gap-1.5 border-r border-line text-[13px] cursor-pointer shrink-0 ${on ? "bg-bg text-text" : "bg-panel text-dim hover:text-text"}`}
+                title={t.kind === "example" ? `${t.name} (example, read-only: ⌘S saves a copy)` : t.name}
+              >
+                {on && <span className="absolute top-0 left-0 right-0 h-px bg-accent" />}
+                <i className={`codicon codicon-file-code ${t.kind === "example" ? "text-dim" : "text-accent"}`} style={{ fontSize: 14 }} />
+                <span className={t.kind === "untitled" ? "italic" : ""}>{t.name}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    docs.close(t.key);
+                  }}
+                  className={`w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 cursor-pointer ${on || isDirty ? "" : "opacity-0 group-hover:opacity-100"}`}
+                  aria-label={`Close ${t.name}`}
+                >
+                  <i className={`codicon ${isDirty ? "codicon-circle-filled group-hover:hidden" : "codicon-close"}`} style={{ fontSize: isDirty ? 10 : 14 }} />
+                  {isDirty && <i className="codicon codicon-close hidden group-hover:inline" style={{ fontSize: 14 }} />}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex-1" />
+        <button className="h-full px-2 flex items-center text-text hover:bg-white/10 cursor-pointer" onClick={docs.newUntitled} title="New Untitled Script">
+          <i className="codicon codicon-add" />
+        </button>
+        <button
+          className="h-full px-3 flex items-center gap-1 text-text hover:bg-white/10 cursor-pointer disabled:opacity-40"
+          onClick={() => plan()}
+          disabled={!info || !account || planning || !docs.activeTab}
+          title="Simulate (⌘↵): reads the chains, signs nothing"
+        >
+          <i className={`codicon ${planning ? "codicon-loading codicon-modifier-spin" : "codicon-play"} text-accent`} />
+        </button>
+      </div>
+      <div className="h-[22px] shrink-0 px-3 flex items-center gap-1 text-[12px] text-dim bg-bg">
+        {docs.activeTab?.kind === "file" ? (docs.dir.split(/[\\/]/).pop() ?? "scripts") : docs.activeTab?.kind === "example" ? "examples" : "untitled"}
+        <i className="codicon codicon-chevron-right" style={{ fontSize: 12 }} /> {docs.activeTab?.name ?? ""}
+      </div>
+      <div className="flex-1 min-h-0">
+        {!docs.activeTab ? (
+          <div className="h-full flex flex-col items-center justify-center gap-3 text-dim">
+            <i className="codicon codicon-file-code" style={{ fontSize: 64, opacity: 0.25 }} />
+            <div>Open a script from the Explorer, or</div>
+            <div className="flex gap-2">
+              <button className="text-accent hover:underline cursor-pointer" onClick={() => { setView("explorer"); setSideOpen(true); setCreating(true); }}>New File… (⌥⌘N)</button>
+            </div>
+          </div>
+        ) : (
+        <Editor
+          onSave={saveActive}
+          value={source}
+          onChange={(s) => {
+            setSource(s);
+            if (planErr) setPlanErr(null);
+          }}
+          docs={info?.docs ?? null}
+          network={network}
+          markers={markers}
+          onApi={(a) => (editorRef.current = a)}
+          onRun={() => plan()}
+          onCursor={(line, col) => setCursor({ line, col })}
+        />
+        )}
+      </div>
+    </div>
+  );
+
+  const panel = (
+    <div className="h-full min-h-0 flex flex-col bg-panel border-t border-line">
+      <WalletStrip
+        snap={snap}
+        walletReady={evmReq ? !!evmAcct && !wrongAccount : !!wallet && !!walletAcct && !wrongAccount}
+        walletWarning={wrongAccount ?? splitWarning}
+        onApprove={approve}
+      />
+      <div className="flex-1 min-h-0">
+        <Panel tab={panelTab} setTab={setPanelTab} snap={snap} problems={problems} busy={busy || planning} act={actions} onReveal={(l) => editorRef.current?.reveal(l)} />
+      </div>
+    </div>
+  );
+
+  const main = (
+    <div data-sash-root className="relative flex-1 min-w-0 min-h-0 flex flex-col">
+      <div className="flex-1 min-h-0">{editorGroup}</div>
+      <Sash dir="horizontal" min={120} max={() => window.innerHeight - 180} onSize={setPanelH} onReset={() => setPanelH(300)} style={{ bottom: panelH - 3, top: "auto", marginTop: 0 }} />
+      <div className="shrink-0 min-h-0" style={{ height: panelH }}>{panel}</div>
+    </div>
+  );
+
+  if (page === "home") return <Landing onOpen={() => (location.hash = "editor")} />;
 
   return (
     <div className="h-full flex flex-col">
-      <Header
-        running={!!snap?.running}
-        info={info}
-        title={title}
-        setTitle={setTitle}
-        onExample={openExample}
-        onSimulate={() => plan()}
-        canSimulate={!!info && !!account}
-        planning={planning}
-      />
       <div className="flex-1 min-h-0 flex">
-        <Rail
-          docs={docsOpen}
-          flow={flowOpen}
-          toggleDocs={() => setDocsOpen((x) => !x)}
-          toggleFlow={() => setFlowOpen((x) => !x)}
-          flowBadge={snap?.walletRequest ? "wallet" : snap?.running ? "run" : null}
+        <ActivityBar
+          view={view}
+          open={sideOpen}
+          onSelect={selectView}
+          badges={{ run: snap?.walletRequest ? "dot" : snap?.running ? "dot" : undefined }}
         />
-        {docsOpen && (
-          <aside className="w-[340px] shrink-0 min-h-0 border-r border-line bg-panel/60">
-            <DocsPane docs={info?.docs ?? null} onInsert={insert} />
-          </aside>
-        )}
-        <main className="flex-1 min-w-0 min-h-0 flex flex-col">
-          <div className={`min-h-0 overflow-hidden ${flowOpen ? "flex-[1_1_55%]" : "flex-1"}`}>
-            <Editor
-              value={source}
-              onChange={(s) => {
-                setSource(s);
-                if (planErr) setPlanErr(null);
-              }}
-              docs={info?.docs ?? null}
-              network={network}
-              errorLine={planErr?.line ?? null}
-              onView={(view) => (viewRef.current = view)}
-              onRun={() => plan()}
-            />
-          </div>
-          {flowOpen && (
-            <section className="flex-[1_1_45%] min-h-[220px] border-t border-line bg-panel/40">
-              <FlowPanel
-                snap={snap}
-                busy={busy || planning}
-                walletReady={!!wallet && !!walletAcct && !wrongAccount}
-                walletWarning={wrongAccount ?? splitWarning}
-                act={{
-                  review: () => setReviewing(true),
-                  resume: (retry) => snap && guard(() => api.resume(ctx, snap.hash, retry)),
-                  kill: () => snap && guard(async () => void (await api.kill(ctx, snap.hash))),
-                  fresh: async () => {
-                    const s = await plan(true);
-                    if (s?.view && s.run === "none") setReviewing(true);
-                  },
-                  approve,
-                }}
-              />
-            </section>
+        <div data-sash-root className="relative flex-1 min-w-0 min-h-0 flex">
+          {sideOpen && (
+            <>
+              <div className="shrink-0 h-full min-h-0 border-r border-line" style={{ width: sideW }}>
+                <SideBar
+                  view={view}
+                  info={info}
+                  explorer={{
+                    dir: docs.dir, files: docs.files, examples: info?.examples ?? [], activeKey: docs.active, dirty: docs.dirty,
+                    creating, setCreating,
+                    onOpenFile: docs.openFile, onOpenExample: docs.openExample, onNewFile: docs.newFile,
+                    onRename: docs.rename, onDelete: docs.remove, onRefresh: docs.refresh,
+                  }}
+                  onInsert={insert}
+                  run={{
+                    info, network, setNetwork, signer, setSigner, keyAccount, setKeyAccount,
+                    walletAccount: walletAcct?.accountId ?? null, walletLoading,
+                    onConnect: () => wallet?.modal.show(),
+                    onDisconnect: () => wallet && disconnect(wallet).catch((e) => setNotice(e.message)),
+                    evmAccount: evmAcct, evmAvailable: hasEvmWallet(),
+                    onConnectEvm: () => connectEvm().then(setEvmAcct, (e) => setNotice(`evm wallet: ${e.message}`)),
+                    snap, planning, busy, canSimulate: !!info && !!account,
+                    onSimulate: () => plan(), onReview: () => setReviewing(true),
+                  }}
+                />
+              </div>
+              <Sash dir="vertical" min={170} max={() => window.innerWidth * 0.6} onSize={setSideW} onReset={() => setSideW(300)} style={{ left: sideW }} />
+            </>
           )}
-        </main>
+          {main}
+        </div>
       </div>
       <Confetti fire={party} />
       <StatusBar
-        info={info}
         network={network}
-        setNetwork={setNetwork}
+        onNetwork={() => setNetwork(network === "testnet" ? "mainnet" : "testnet")}
         signer={signer}
-        setSigner={setSigner}
-        keyAccount={keyAccount}
-        setKeyAccount={setKeyAccount}
-        walletAccount={walletAcct?.accountId ?? null}
-        walletLoading={walletLoading}
-        onConnect={() => wallet?.modal.show()}
-        onDisconnect={() => wallet && disconnect(wallet).catch((e) => setNotice(e.message))}
+        account={account}
+        evmAccount={evmAcct}
+        onAccount={() => selectView("run")}
+        errors={errors}
+        warnings={warnings}
+        onProblems={() => setPanelTab("problems")}
+        cursor={cursor}
         snap={snap}
         message={status}
       />

@@ -1,4 +1,5 @@
 import type { Env, IntentToken } from "../env.js";
+import { envVar } from "../portable.js";
 import { INTENTS_API } from "../registry.js";
 
 /**
@@ -6,11 +7,13 @@ import { INTENTS_API } from "../registry.js";
  * Without either, 1Click adds its default app fee to each quote; the plan shows the quoted output.
  */
 export function intentsEnv(): Env["intents"] {
-  const base = (process.env.NEAR_INTENTS_API_URL ?? INTENTS_API).replace(/\/$/, "");
+  const base = (envVar("NEAR_INTENTS_API_URL") ?? INTENTS_API).replace(/\/$/, "");
   const headers = (): Record<string, string> => {
     const h: Record<string, string> = { "content-type": "application/json" };
-    if (process.env.NEAR_INTENTS_JWT) h.authorization = `Bearer ${process.env.NEAR_INTENTS_JWT}`;
-    if (process.env.NEAR_INTENTS_API_KEY) h["x-api-key"] = process.env.NEAR_INTENTS_API_KEY;
+    const jwt = envVar("NEAR_INTENTS_JWT");
+    const key = envVar("NEAR_INTENTS_API_KEY");
+    if (jwt) h.authorization = `Bearer ${jwt}`;
+    if (key) h["x-api-key"] = key;
     return h;
   };
   const req = async (method: "GET" | "POST", path: string, body?: unknown): Promise<any> => {

@@ -28,6 +28,8 @@ export function nextAction(step: Step, st: StepState, opts: { retryFailed?: bool
       if (step.type === "near-tx" && step.purpose?.kind === "mpc-sign") return "retry";
       // Any other failed NEAR transaction is retried only on request: later receipts may have had effects.
       if (step.type === "near-tx") return opts.retryFailed ? "retry" : "stop";
+      // A wallet transaction that failed: retry only on request (a rejected one sent nothing; a reverted one did).
+      if (step.type === "evm-wallet-tx") return opts.retryFailed ? "retry" : "stop";
       // Producing a signed delegate sends nothing: safe to do again.
       if (step.type === "delegate-sign") return "retry";
       // A reverted EVM transaction consumed its pinned nonce; a rejected Bitcoin or Solana

@@ -1,5 +1,5 @@
 import { eth, near, tgas, units } from "../format.js";
-import { explorerUrl } from "../live.js";
+import { explorerUrl } from "../liveCore.js";
 import { actionDeposit, actionGas, type NearAction, type Plan, type Step, type StepState } from "../plan/types.js";
 import { planProblems } from "../plan/problems.js";
 import type { PlanView, Risk, StepView } from "./api.js";
@@ -31,7 +31,7 @@ export function stepRisk(s: Step, network: string): Risk[] {
   } else if (s.type === "delegate-sign") {
     if (s.actions.some((a) => IRREVERSIBLE.has(a.kind))) tags.add("irreversible");
     if (mainnet && s.actions.some(movesNear)) tags.add("high-value");
-  } else if (s.type === "evm-tx") {
+  } else if (s.type === "evm-tx" || s.type === "evm-wallet-tx") {
     const erc20Out = /^(transfer|approve|transferFrom)\(/.test(s.decoded);
     if (s.value > 0n || erc20Out) tags.add("irreversible");
     if ((mainnet && (s.value > 0n || erc20Out)) || s.value >= 10n ** 17n) tags.add("high-value");
@@ -52,6 +52,7 @@ export function stepHint(s: Step, st: StepState): string | undefined {
   if (st.handoff) return "wallet answer not recorded → check the wallet or explorer, then give the tx hash or mark it not sent";
   if (s.type === "assert") return "condition is false now → fix the balance or state it checks, then Resume (it is checked again)";
   if (/^wallet:/.test(e)) return "nothing was sent → Resume and retry to ask the wallet again";
+  if (s.type === "evm-wallet-tx") return "reverted: gas was spent from your wallet → check the balance and the call, then simulate again";
   if (/NotEnoughBalance|LackBalanceForState|not enough NEAR/i.test(e)) return `insufficient NEAR on ${(s as any).sender} → fund it, then Resume and retry`;
   if (/AccountAlreadyExists/.test(e)) return "the account already exists → pick another name; earlier steps stay done";
   if (/AccountDoesNotExist/.test(e)) return "an account in this step does not exist → create or fix it, then Resume and retry";
@@ -141,6 +142,20 @@ export function planView(plan: Plan, state: Record<string, StepState> = {}, canS
         url: (r?.destinationTxs ?? []).find((t) => t.startsWith("http")),
       };
     }
+    if (s.type === "evm-wallet-tx") {
+      const sym = s.chain.symbol;
+      return {
+        ...base, kind: "evm", title: cap(s.description),
+        rows: [
+          ["from", `${s.from} (your wallet)`], ["to", s.to],
+          ["call", s.data === "0x" ? "plain transfer" : s.decoded],
+          ...(s.value ? [["value", `${units(s.value, 18)} ${sym} (${s.value} wei)`] as [string, string]] : []),
+          ["gas", `simulated from your wallet: limit ${s.gas}, up to ${eth(s.maxFee).replace(/ETH$/, sym)}; your wallet sets nonce and fees`],
+        ],
+        actions: [], atomic: false, signedWith: "wallet", signer: s.from,
+        fee: st.feePaid ? eth(BigInt(st.feePaid)).replace(/ETH$/, sym) : undefined,
+      };
+    }
     const from: [string, string] = ["from", `${s.sender} (derived from ${s.derivation.accountId}, path "${s.derivation.path}")`];
     if (s.type === "evm-tx") {
       const sym = s.chain.symbol;
@@ -189,7 +204,7 @@ export function planView(plan: Plan, state: Record<string, StepState> = {}, canS
   const txs = plan.steps.filter((s) => s.type !== "assert" && s.type !== "delegate-sign" && s.type !== "intents-wait");
   const nearFee = plan.steps.reduce((x, s) => x + (s.type === "near-tx" ? s.maxFee : 0n), 0n);
   const deposits = plan.steps.reduce((x, s) => x + (s.type === "near-tx" ? s.actions.reduce((y, a) => y + actionDeposit(a), 0n) : 0n), 0n);
-  const evmFee = plan.steps.reduce((x, s) => x + (s.type === "evm-tx" ? s.maxFee : 0n), 0n);
+  const evmFee = plan.steps.reduce((x, s) => x + (s.type === "evm-tx" || s.type === "evm-wallet-tx" ? s.maxFee : 0n), 0n);
   const btcFee = plan.steps.reduce((x, s) => x + (s.type === "btc-tx" ? s.fee : 0n), 0n);
   const risk = steps.reduce<Risk>((m, s) => (RANK.indexOf(s.risk[s.risk.length - 1]) > RANK.indexOf(m) ? s.risk[s.risk.length - 1] : m), "read-only");
 
@@ -197,6 +212,9 @@ export function planView(plan: Plan, state: Record<string, StepState> = {}, canS
   const asserts = plan.steps.filter((s) => s.type === "assert").length;
   if (asserts) simulated.push(`${asserts} check(s) evaluated against live state`);
   if (plan.steps.some((s) => s.type === "near-tx")) simulated.push(`NEAR ${plan.network}: balances, accounts and gas price read`);
+  for (const s of plan.steps) {
+    if (s.type === "evm-wallet-tx") simulated.push(`${s.chain.label}: your wallet's transaction simulated from ${s.from.slice(0, 8)}…`);
+  }
   for (const label of new Set(plan.steps.filter((s) => s.type === "evm-tx").map((s) => (s as any).chain.label))) {
     simulated.push(`${label}: nonce pinned, gas estimated by simulating each call`);
   }

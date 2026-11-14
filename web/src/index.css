@@ -1,25 +1,116 @@
 @import "tailwindcss";
+@import "@vscode/codicons/dist/codicon.css";
 
+/* VS Code "Dark Modern" workbench colors. Neon green replaces VS Code's blue accent. */
 @theme {
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --color-bg: #09090d;
-  --color-panel: #0f1015;
-  --color-panel-2: #16171f;
-  --color-line: #22232e;
-  --color-line-2: #33354a;
-  --color-dim: #8590a6;
-  --color-faint: #4d5568;
-  --color-text: #e4e8f1;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, Ubuntu, sans-serif;
+  --font-mono: Menlo, Monaco, "Cascadia Code", Consolas, "Courier New", monospace;
+  --color-bg: #1f1f1f;          /* editor */
+  --color-panel: #181818;       /* side bar, panel, activity bar, status bar, tabs */
+  --color-panel-2: #2b2b2b;     /* inputs, hover */
+  --color-line: #2b2b2b;        /* borders */
+  --color-line-2: #3c3c3c;
+  --color-dim: #9d9d9d;
+  --color-faint: #6e7681;
+  --color-text: #cccccc;
   --color-accent: #39ff14;
-  --color-accent-ink: #041a00;
-  --color-bad: #ff6b6b;
-  --color-warn: #f5b84a;
-  --color-helper: #c49bff;
-  --color-var: #7fa8ff;
-  --color-str: #e8c46a;
-  --color-num: #ff9e64;
-  --color-opt: #6fd3d6;
+  --color-accent-ink: #062200;
+  --color-bad: #f85149;
+  --color-warn: #cca700;
+  --color-helper: #dcdcaa;
+  --color-var: #9cdcfe;
+  --color-str: #ce9178;
+  --color-num: #b5cea8;
+  --color-opt: #4fc1ff;
+}
+
+:root {
+  --vscode-font-family: var(--font-sans);
+  --vscode-font-size: 13px;
+  --vscode-font-weight: normal;
+  --vscode-editor-font-family: var(--font-mono);
+  --vscode-editor-font-size: 13px;
+  --vscode-editor-font-weight: normal;
+  --vscode-foreground: #cccccc;
+  --vscode-icon-foreground: #cccccc;
+  --vscode-focusBorder: #39ff14;
+  --vscode-contrastBorder: transparent;
+  --vscode-widget-shadow: #0000005c;
+  --vscode-editor-background: #1f1f1f;
+  --vscode-editor-foreground: #cccccc;
+  --vscode-editorGroup-border: #ffffff17;
+  --vscode-editorWidget-border: #454545;
+  --vscode-sideBar-background: #181818;
+  --vscode-sideBarTitle-foreground: #cccccc;
+  --vscode-sideBarSectionHeader-background: #181818;
+  --vscode-panel-background: #181818;
+  --vscode-panel--background: #181818;
+  --vscode-panelTitle-activeForeground: #cccccc;
+  --vscode-panelTitle-inactiveForeground: #9d9d9d;
+  --vscode-panelTitle-activeBorder: #39ff14;
+  --vscode-button-background: #39ff14;
+  --vscode-button-foreground: #062200;
+  --vscode-button-hoverBackground: #6bff52;
+  --vscode-button-border: #ffffff12;
+  --vscode-button-separator: #06220066;
+  --vscode-button-secondaryBackground: #313131;
+  --vscode-button-secondaryForeground: #cccccc;
+  --vscode-button-secondaryHoverBackground: #3c3c3c;
+  --vscode-badge-background: #616161;
+  --vscode-badge-foreground: #f8f8f8;
+  --vscode-activityBarBadge-background: #39ff14;
+  --vscode-activityBarBadge-foreground: #062200;
+  --vscode-settings-textInputBackground: #313131;
+  --vscode-settings-textInputForeground: #cccccc;
+  --vscode-settings-textInputBorder: #3c3c3c;
+  --vscode-settings-dropdownBackground: #313131;
+  --vscode-settings-dropdownForeground: #cccccc;
+  --vscode-settings-dropdownBorder: #3c3c3c;
+  --vscode-settings-dropdownListBorder: #454545;
+  --vscode-settings-checkboxBackground: #313131;
+  --vscode-settings-checkboxForeground: #cccccc;
+  --vscode-settings-checkboxBorder: #3c3c3c;
+  --vscode-settings-headerBorder: #2b2b2b;
+  --vscode-checkbox-background: #313131;
+  --vscode-checkbox-foreground: #cccccc;
+  --vscode-checkbox-border: #3c3c3c;
+  --vscode-input-placeholderForeground: #989898;
+  --vscode-inputOption-activeBackground: #39ff1433;
+  --vscode-inputOption-activeBorder: #39ff14;
+  --vscode-inputOption-activeForeground: #ffffff;
+  --vscode-inputValidation-errorBackground: #5a1d1d;
+  --vscode-inputValidation-errorBorder: #be1100;
+  --vscode-list-hoverBackground: #2a2d2e;
+  --vscode-list-hoverForeground: #cccccc;
+  --vscode-list-activeSelectionBackground: #04395e;
+  --vscode-list-activeSelectionForeground: #ffffff;
+  --vscode-list-activeSelectionIconForeground: #ffffff;
+  --vscode-list-inactiveSelectionBackground: #37373d;
+  --vscode-list-focusOutline: #39ff14;
+  --vscode-list-focusAndSelectionOutline: #39ff14;
+  --vscode-list-highlightForeground: #39ff14;
+  --vscode-list-focusHighlightForeground: #39ff14;
+  --vscode-tree-indentGuidesStroke: #585858;
+  --vscode-tree-inactiveIndentGuidesStroke: #58585866;
+  --vscode-toolbar-hoverBackground: #5a5d5e50;
+  --vscode-toolbar-activeBackground: #63666750;
+  --vscode-toolbar-hoverOutline: transparent;
+  --vscode-progressBar-background: #39ff14;
+  --vscode-scrollbar-shadow: #000000;
+  --vscode-scrollbarSlider-background: #79797966;
+  --vscode-scrollbarSlider-hoverBackground: #646464b3;
+  --vscode-scrollbarSlider-activeBackground: #bfbfbf66;
+  --vscode-sash-hoverBorder: #39ff14;
+  --vscode-menu-background: #1f1f1f;
+  --vscode-menu-foreground: #cccccc;
+  --vscode-menu-border: #454545;
+  --vscode-menu-selectionBackground: #04395e;
+  --vscode-menu-selectionForeground: #ffffff;
+  --vscode-menu-selectionBorder: transparent;
+  --vscode-menu-separatorBackground: #454545;
+  --vscode-keybindingTable-headerBackground: #ffffff0a;
+  --vscode-keybindingTable-rowsBackground: #ffffff0a;
+  --vscode-editor-inlineValuesForeground: #ffffff80;
 }
 
 html, body, #root { height: 100%; }
@@ -30,42 +121,14 @@ body {
   font-family: var(--font-sans);
   font-size: 13px;
   -webkit-font-smoothing: antialiased;
+  overflow: hidden;
 }
-::selection { background: #39ff1433; }
-* { scrollbar-width: thin; scrollbar-color: var(--color-line-2) transparent; }
+::selection { background: #264f78; }
+* { scrollbar-width: thin; scrollbar-color: #79797966 transparent; }
+.codicon { font-size: 16px; }
 
-/* ---------- CodeMirror ---------- */
-.cm-editor { height: 100%; background: transparent !important; font-size: 13.5px; }
-.cm-content { padding-top: 14px !important; }
-.cm-editor.cm-focused { outline: none !important; }
-.cm-scroller { font-family: var(--font-mono) !important; line-height: 1.75 !important; }
-.cm-gutters { background: transparent !important; border: none !important; color: var(--color-faint) !important; }
-.cm-lineNumbers .cm-gutterElement { padding: 0 14px 0 8px !important; }
-.cm-activeLineGutter { background: transparent !important; color: var(--color-accent) !important; }
-.cm-activeLine { background: #ffffff06 !important; }
-.cm-cursor { border-left: 2px solid var(--color-accent) !important; box-shadow: 0 0 8px var(--color-accent); }
-.cm-selectionBackground, .cm-focused .cm-selectionBackground { background: #39ff1426 !important; }
-.cm-errorLine { background: #ff6b6b14 !important; box-shadow: inset 2px 0 0 var(--color-bad); }
-.cm-errorLine-gutter { color: var(--color-bad) !important; }
-
-/* autocomplete dropdown, VS Code-like */
-.cm-tooltip { background: var(--color-panel) !important; border: 1px solid var(--color-line-2) !important; border-radius: 4px; }
-.cm-tooltip-autocomplete > ul { font-family: var(--font-mono) !important; max-height: 18em !important; min-width: 300px; }
-.cm-tooltip-autocomplete > ul > li { padding: 3px 10px !important; line-height: 1.6; display: flex; align-items: baseline; gap: 10px; }
-.cm-tooltip-autocomplete > ul > li[aria-selected] { background: #39ff141f !important; color: var(--color-text) !important; }
-.cm-completionLabel { color: var(--color-text); }
-.cm-completionMatchedText { color: var(--color-accent); text-decoration: none !important; font-weight: 700; }
-.cm-completionDetail { color: var(--color-dim); font-style: normal !important; margin-left: auto !important; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
-.cm-completionIcon { width: 1.4em !important; opacity: 1 !important; font-size: 11px; }
-.cm-completionIcon-keyword::after { content: "kw" !important; color: var(--color-accent); }
-.cm-completionIcon-function::after { content: "fn" !important; color: var(--color-accent); }
-.cm-completionIcon-method::after { content: "@" !important; color: var(--color-helper); }
-.cm-completionIcon-variable::after { content: "$" !important; color: var(--color-var); }
-.cm-completionIcon-namespace::after { content: "mod" !important; color: var(--color-dim); }
-.cm-completionIcon-property::after { content: "--" !important; color: var(--color-opt); }
-.cm-completionIcon-constant::after { content: "◆" !important; color: var(--color-num); }
-.cm-completionInfo { background: var(--color-panel) !important; border: 1px solid var(--color-line-2) !important; padding: 10px 12px !important; max-width: 420px !important; font-family: var(--font-mono); }
-.cm-snippetField { background: #39ff141a; }
+/* Monaco hover / suggest docs: code blocks in our markdown */
+.monaco-hover code, .suggest-details code { color: #39ff14; }
 
 /* ---------- wallet selector modal ---------- */
 #near-wallet-selector-modal .dark-theme, #near-wallet-selector-modal {
@@ -96,6 +159,7 @@ body {
 #near-wallet-selector-modal .nws-modal { border-radius: 6px !important; border: 1px solid #222734; }
 
 /* ---------- fun ---------- */
+@keyframes blink { 50% { opacity: 0; } }
 .glow { box-shadow: 0 0 0 1px #39ff14, 0 0 18px #39ff1455, 0 0 42px #39ff1422; }
 .glow-text { text-shadow: 0 0 10px #39ff1499; }
 button { transition: transform .12s cubic-bezier(.3,1.6,.5,1), filter .15s, box-shadow .2s; }

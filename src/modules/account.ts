@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
 import { baseEncode } from "@near-js/utils";
 import { near, tgas } from "../format.js";
 import { isPublicKey } from "../near/tx.js";
+import { sha256 } from "../portable.js";
 import { asInt, asString, show, toJson } from "../plan/eval.js";
 import { STORAGE_PRICE_PER_BYTE } from "../plan/planner.js";
 import type { KeyPermission, NearAction } from "../plan/types.js";
@@ -24,7 +24,7 @@ function readWasm(ctx: { env: { near: { readFile(p: string): Uint8Array } } }, f
   if (code.length < 8 || code[0] !== 0 || code[1] !== 0x61 || code[2] !== 0x73 || code[3] !== 0x6d) {
     throw new Error(`${file} is not a WebAssembly file`);
   }
-  const hash = baseEncode(createHash("sha256").update(code).digest());
+  const hash = baseEncode(sha256(code));
   return { codeBase64: Buffer.from(code).toString("base64"), sha256: hash, size: code.length };
 }
 

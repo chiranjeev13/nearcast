@@ -3,6 +3,7 @@ import bs58 from "bs58";
 import { chainAdapters, contracts } from "chainsig.js";
 import type { Env, SolChain } from "../env.js";
 import type { SolTxStep } from "../plan/types.js";
+import { envVar } from "../portable.js";
 import { CHAINS, type NetworkName, type SolDef } from "../registry.js";
 
 /** Solana through Chain Signatures (ed25519, MPC domain 1). */
@@ -13,7 +14,7 @@ export function solEnv(network: NetworkName, signerContract: string): Env["sol"]
     let x = conns.get(c.name);
     if (!x) {
       const d = defs.find((y) => y.name === c.name)!;
-      x = new Connection(process.env[d.rpcEnv] ?? d.rpc, "confirmed");
+      x = new Connection(envVar(d.rpcEnv) ?? d.rpc, "confirmed");
       conns.set(c.name, x);
     }
     return x;
