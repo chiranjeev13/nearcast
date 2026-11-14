@@ -231,7 +231,7 @@ export function Landing({ onOpen }: { onOpen: () => void }) {
             </h1>
             <p style={{ ...rise(2), fontSize: "clamp(16px, 1.35vw, 19px)" }} className="m-0 max-w-[540px] leading-[1.6] text-[#a9aeb8]">
               Nearcast turns cross-chain work into a short, readable script. Pay on NEAR, move funds on Base, send Bitcoin or
-              swap through NEAR Intents, with a dry run before anything is signed.
+              swap through NEAR Intents.
             </p>
             <div style={rise(3)} className="flex flex-wrap items-center gap-3">
               <PrimaryButton onClick={onOpen}>Open Editor</PrimaryButton>
