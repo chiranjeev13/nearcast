@@ -263,17 +263,14 @@ export function Landing({ onOpen }: { onOpen: () => void }) {
                 </div>
               ))}
             </div>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-5">
               <div className="text-[13px] text-[#6f7580]">Works on</div>
-              <div className="text-[clamp(16px,1.4vw,19px)] leading-[1.9] text-[#e6e8ec]">
-                {CHAINS.map((c, i) => (
-                  <span key={c}>
-                    {c}
-                    {i < CHAINS.length - 1 && <span className="text-[#3a3f48] mx-2.5">/</span>}
-                  </span>
+              <ul className="m-0 p-0 list-none grid grid-cols-3 lg:grid-cols-9 gap-x-6 gap-y-5">
+                {CHAINS.map((c) => (
+                  <li key={c} className="pt-3 border-t border-white/[0.1] text-[clamp(15px,1.3vw,17px)] text-[#e6e8ec] whitespace-nowrap">{c}</li>
                 ))}
-                <span className="text-[#a9aeb8]"> and swaps through NEAR Intents</span>
-              </div>
+              </ul>
+              <p className="m-0 text-[15px] text-[#a9aeb8]">Bridge and swap between them through NEAR Intents.</p>
             </div>
           </div>
         </section>
@@ -286,7 +283,6 @@ export function Landing({ onOpen }: { onOpen: () => void }) {
                 <span className="hidden sm:inline-flex"><Mark size={64} /></span>
                 <div className="flex flex-col gap-2">
                   <div className="font-semibold tracking-[-0.02em]" style={{ fontSize: "clamp(22px, 2.4vw, 30px)" }}>Try it with the examples</div>
-                  <div className="text-[15px] text-[#a9aeb8]">Connect a wallet, simulate, and nothing is signed until you confirm.</div>
                 </div>
               </div>
               <div className="relative"><PrimaryButton onClick={onOpen}>Open Editor</PrimaryButton></div>
