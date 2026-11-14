@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   VscodeButton,
   VscodeCollapsible,
@@ -19,6 +19,39 @@ function Header({ view }: { view: View }) {
     <div className="h-[35px] shrink-0 px-5 flex items-center text-[11px] uppercase tracking-[0.04em] text-text">
       {TITLE[view]}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------- collapsible section
+
+/**
+ * A VS Code collapsible section that remembers whether the user opened or closed it. The React
+ * wrapper re-applies `open` on every render, so the open state has to live here, fed by the
+ * element's own toggle event; otherwise any re-render snaps the section back.
+ */
+function Section({ title, description, defaultOpen, forceOpen, actions, children }: {
+  title: string;
+  description?: string;
+  defaultOpen: boolean;
+  /** Keep open regardless (e.g. while searching). */
+  forceOpen?: boolean;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const ref = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onToggle = (e: Event) => setOpen(Boolean((e as CustomEvent<{ open: boolean }>).detail?.open));
+    el.addEventListener("vsc-collapsible-toggle", onToggle);
+    return () => el.removeEventListener("vsc-collapsible-toggle", onToggle);
+  }, []);
+  return (
+    <VscodeCollapsible ref={ref as any} heading={title} description={description} open={forceOpen || open}>
+      {actions}
+      {children}
+    </VscodeCollapsible>
   );
 }
 
@@ -83,11 +116,17 @@ function Explorer(p: ExplorerProps) {
     `group w-full h-[22px] pl-[22px] pr-2 flex items-center gap-1.5 text-left cursor-pointer ${isActive ? "bg-[#37373d]" : "hover:bg-[#2a2d2e]"}`;
   return (
     <div className="flex flex-col min-h-0 overflow-y-auto">
-      <VscodeCollapsible title={folder} open>
-        <div slot="actions" className="flex items-center">
-          <IconButton icon="codicon-new-file" title="New File… (⌥⌘N)" onClick={() => p.setCreating(true)} />
-          <IconButton icon="codicon-refresh" title="Refresh Explorer" onClick={p.onRefresh} />
-        </div>
+      <Section
+        title={folder}
+        defaultOpen
+        forceOpen={p.creating}
+        actions={
+          <div slot="actions" className="flex items-center">
+            <IconButton icon="codicon-new-file" title="New File… (⌥⌘N)" onClick={() => p.setCreating(true)} />
+            <IconButton icon="codicon-refresh" title="Refresh Explorer" onClick={p.onRefresh} />
+          </div>
+        }
+      >
         <div className="pb-1">
           {p.creating && (
             <NewFileInput
@@ -131,8 +170,8 @@ function Explorer(p: ExplorerProps) {
             );
           })}
         </div>
-      </VscodeCollapsible>
-      <VscodeCollapsible title="Examples" description="read-only" open>
+      </Section>
+      <Section title="Examples" description="read-only" defaultOpen>
         <div className="pb-1">
           {p.examples.map((x) => {
             const key = `example:${x.name}`;
@@ -145,7 +184,7 @@ function Explorer(p: ExplorerProps) {
             );
           })}
         </div>
-      </VscodeCollapsible>
+      </Section>
     </div>
   );
 }
@@ -181,7 +220,13 @@ function DocsView({ docs, onInsert }: { docs: Docs | null; onInsert: (e: EntryDo
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto">
         {groups.map(({ m, entries }) => (
-          <VscodeCollapsible key={m.name || "lang"} title={m.name ? `${m.name}${m.name === "std" ? " (built in)" : ""}` : "language"} description={String(entries.length)} open={!!q || m.name === "std" || m.name === ""}>
+          <Section
+            key={m.name || "lang"}
+            title={m.name ? `${m.name}${m.name === "std" ? " (built in)" : ""}` : "language"}
+            description={String(entries.length)}
+            defaultOpen={m.name === "std" || m.name === ""}
+            forceOpen={!!q}
+          >
             <div className="pb-1">
               {entries.map((e) => {
                 const id = `${e.kind}:${e.insert}`;
@@ -218,7 +263,7 @@ function DocsView({ docs, onInsert }: { docs: Docs | null; onInsert: (e: EntryDo
                 );
               })}
             </div>
-          </VscodeCollapsible>
+          </Section>
         ))}
       </div>
     </div>
