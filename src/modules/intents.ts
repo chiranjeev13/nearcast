@@ -70,12 +70,17 @@ export const intents: Module = {
       arity(args, 3, 3, USAGE);
       onlyOpts(cmd, ["to", "path", "slippage", "deadline", "from-wallet"], "intents:swap");
       const fromWallet = cmd.opts["from-wallet"] !== undefined && (await ctx.eval(cmd.opts["from-wallet"])) !== false;
-      if (ctx.scopeKind !== "seq") throw new Error("intents:swap must be at the top level of the script");
       if (ctx.env.near.network !== "mainnet") {
         throw new Error("NEAR Intents runs on mainnet only: simulate this with --network mainnet (the UI's network switch)");
       }
       const from = await asset(ctx, asString(await ctx.eval(args[1]), "from"));
       const to = await asset(ctx, asString(await ctx.eval(args[2]), "to"));
+      // Inside batch ( ... ) only NEAR deposits fit: they are actions on the token contract.
+      if (ctx.scopeKind === "batch" ? from.chain !== "near" || fromWallet : ctx.scopeKind !== "seq") {
+        throw new Error(ctx.scopeKind === "batch"
+          ? "inside batch ( ... ), intents:swap can only deposit from near (e.g. near:USDC)"
+          : "intents:swap must be at the top level of the script or inside batch ( ... )");
+      }
       const amount = scale(await ctx.eval(args[0]), from.token.decimals, "amount");
       if (amount <= 0n) throw new Error("amount must be greater than zero");
       const path = cmd.opts.path ? asString(await ctx.eval(cmd.opts.path), "--path") : "intents";
@@ -221,10 +226,9 @@ export const intents: Module = {
           await ctx.solTransfer(chain, path, deposit, amount);
         }
       }
-      const depositStep = ctx.lastStepId;
-
-      // 3. Wait for the solvers. Sends nothing; resumable like any step.
-      ctx.pushStep<IntentsWaitStep>(
+      // 3. Wait for the solvers. Sends nothing; resumable like any step. Inside a batch, it follows
+      //    the batch's transaction, which is only built at the end of the block.
+      ctx.afterTx((depositStep) => ctx.pushStep<IntentsWaitStep>(
         (base) => ({
           ...base,
           type: "intents-wait",
@@ -240,7 +244,7 @@ export const intents: Module = {
           correlationId: res.correlationId,
         }),
         `NEAR Intents delivers about ${outHuman} to ${recipient}`,
-      );
+      ));
       ctx.prints.push(`intents: ${fromHuman} -> about ${outHuman} (minimum ${units(BigInt(q.minAmountOut ?? q.amountOut), to.token.decimals)}), ~${q.timeEstimate ?? "?"}s`);
     },
   },
@@ -256,7 +260,7 @@ export const intents: Module = {
     swap: {
       usage: USAGE,
       summary: "Bridge or swap through NEAR Intents. Your NEAR account signs the deposit; solvers deliver on the other chain.",
-      details: "Mainnet only. `from`/`to` are optional. Same token on two chains = bridge (base:USDC → arbitrum:USDC). Recipient and refund default to addresses this NEAR account controls. The quote is re-checked before depositing; unfilled swaps are refunded.",
+      details: "Mainnet only. Several swaps from the same NEAR token can share one transaction: wrap them in batch ( ... ). `from`/`to` are optional. Same token on two chains = bridge (base:USDC → arbitrum:USDC). Recipient and refund default to addresses this NEAR account controls. The quote is re-checked before depositing; unfilled swaps are refunded.",
       example: "intents:swap 100 from base:USDC to arbitrum:USDC --from-wallet",
       opts: [
         { name: "from-wallet", summary: "deposit from the EVM wallet connected in the UI (MetaMask); refunds go back to it" },

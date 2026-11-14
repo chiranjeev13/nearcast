@@ -27,7 +27,8 @@ import {
 
 type Scope =
   | { kind: "seq" }
-  | { kind: "batch"; receiver: string; actions: NearAction[]; parts: string[] }
+  /** The receiver is given (`batch <receiver>`) or fixed by the first action (`batch ( ... )`). */
+  | { kind: "batch"; receiver?: string; actions: NearAction[]; parts: string[]; after: ((txStepId: string) => void)[] }
   | { kind: "evm" }
   /** meta:relay / meta:sign: like a batch, but the receiver is fixed by the first action. */
   | { kind: "meta"; receiver?: string; actions: NearAction[]; parts: string[] };
@@ -390,6 +391,28 @@ export class PlanCtx implements EvalCtx {
     return step;
   }
 
+  /**
+   * Run `fn` with the id of the transaction that carries the actions just added: right away at the
+   * top level, or once the enclosing batch is emitted (its transaction does not exist yet).
+   */
+  afterTx(fn: (txStepId: string) => void): void {
+    const scope = this.#scope;
+    if (scope.kind === "batch") {
+      const stmt = this.#stmt;
+      scope.after.push((id) => {
+        const outer = this.#stmt;
+        this.#stmt = stmt;
+        try {
+          fn(id);
+        } finally {
+          this.#stmt = outer;
+        }
+      });
+      return;
+    }
+    fn(this.lastStepId);
+  }
+
   /** id of the most recently added step. */
   get lastStepId(): string {
     return this.steps[this.steps.length - 1].id;
@@ -439,16 +462,17 @@ export class PlanCtx implements EvalCtx {
     }
   }
 
-  /** `batch <receiver> ( ... )`: collect the block's actions into one transaction. */
-  async batch(cmd: CommandStmt, receiver: string): Promise<void> {
+  /** `batch [<receiver>] ( ... )`: collect the block's actions into one transaction. */
+  async batch(cmd: CommandStmt, receiver?: string): Promise<void> {
     if (this.#scope.kind !== "seq") {
       throw new ScriptError(`batch cannot be nested inside ${this.#scope.kind === "batch" ? "another batch" : this.#scope.kind === "meta" ? "a meta transaction" : "chainsig:on"}`, cmd.loc);
     }
-    const scope: Scope = { kind: "batch", receiver, actions: [], parts: [] };
+    const scope: Scope = { kind: "batch", receiver, actions: [], parts: [], after: [] };
     await this.block(cmd.block ?? [], scope);
     this.#stmt = cmd;
-    if (scope.actions.length === 0) throw new ScriptError("batch is empty", cmd.loc);
-    await this.#emitNear(this.#sender, receiver, scope.actions, `atomic batch on ${receiver}: ${scope.parts.join("; ")}`, true);
+    if (scope.actions.length === 0 || !scope.receiver) throw new ScriptError("batch is empty", cmd.loc);
+    const tx = await this.#emitNear(this.#sender, scope.receiver, scope.actions, `atomic batch on ${scope.receiver}: ${scope.parts.join("; ")}`, true);
+    for (const fn of scope.after) fn(tx.id);
   }
 
   /** `as <account> ( ... )`: the block's NEAR transactions are signed by another account with a local key. */

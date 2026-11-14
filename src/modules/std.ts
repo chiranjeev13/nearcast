@@ -52,8 +52,8 @@ export const std: Module = {
     },
 
     async batch(ctx, cmd) {
-      if (cmd.args.length !== 1 || !cmd.block) throw new Error("usage: batch <receiver> ( ... )");
-      await ctx.batch(cmd, asString(await ctx.eval(cmd.args[0]), "batch receiver"));
+      if (cmd.args.length > 1 || !cmd.block) throw new Error("usage: batch [<receiver>] ( ... )");
+      await ctx.batch(cmd, cmd.args[0] ? asString(await ctx.eval(cmd.args[0]), "batch receiver") : undefined);
     },
 
     async seq(ctx, cmd) {
@@ -129,8 +129,9 @@ export const std: Module = {
       chains: ["near"],
     },
     batch: {
-      usage: "batch <receiver> ( ... )",
-      summary: "One atomic transaction: every action inside goes to <receiver>; all succeed or none do.",
+      usage: "batch [<receiver>] ( ... )",
+      summary: "One atomic transaction: every action inside goes to one receiver; all succeed or none do.",
+      details: "Without <receiver>, the first action decides it. Several intents:swap deposits from the same NEAR token fit in one batch: one approval.",
       example: "batch counter.testnet (\n  call counter.testnet increment\n  call counter.testnet increment\n)",
       block: true,
       chains: ["near"],
