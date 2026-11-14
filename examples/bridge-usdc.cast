@@ -1,0 +1,10 @@
+# Bridge USDC from Base to Arbitrum with NEAR Intents (mainnet).
+# Your NEAR account signs the Base deposit through Chain Signatures; solvers deliver on Arbitrum
+# to the address the same NEAR account controls there. Unfilled swaps are refunded on Base.
+load intents
+load chainsig
+
+print "your Base / Arbitrum address:" @chainsig:address(base "intents")
+assert @chainsig:balance(base "intents" USDC) >= 10e6 "the Base address needs 10 USDC"
+
+intents:swap 10 from base:USDC to arbitrum:USDC --slippage 0.5

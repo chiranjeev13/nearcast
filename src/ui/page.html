@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nearcast</title>
+<style>
+  :root {
+    --bg: #0b0f0e; --panel: #121817; --panel-2: #18201e; --line: #25302d; --text: #e6efec; --dim: #8fa39d;
+    --accent: #37d99a; --accent-ink: #04130d; --near: #37d99a; --evm: #7aa7ff; --check: #f2c14e;
+    --bad: #ff6b6b; --warn: #f2c14e; --code-str: #f2c14e; --code-var: #7aa7ff; --code-helper: #c79bff; --code-kw: #37d99a; --code-num: #ff9d6b;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f4f7f6; --panel: #ffffff; --panel-2: #f0f4f3; --line: #d6dfdc; --text: #14201c; --dim: #5b6f69;
+      --accent: #0c8f5c; --accent-ink: #ffffff; --near: #0c8f5c; --evm: #2d5fd0; --check: #8a6200;
+      --bad: #c22f2f; --warn: #8a6200; --code-str: #8a6200; --code-var: #2d5fd0; --code-helper: #7a3fc4; --code-kw: #0c8f5c; --code-num: #b4501a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--sans); display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .brand { font: 700 18px var(--mono); letter-spacing: -0.5px; }
+  .brand b { color: var(--accent); }
+  .tag { color: var(--dim); font-size: 13px; }
+  .chip { margin-left: auto; font: 12px var(--mono); color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip + .chip { margin-left: 0; }
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } body { height: auto; } .pane { min-height: 60vh; } }
+  .pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .pane + .pane { border-left: 1px solid var(--line); }
+  .bar { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; min-height: 49px; }
+  .bar .hint { color: var(--dim); font-size: 12px; }
+  button, select { font: 600 13px var(--sans); border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); padding: 6px 12px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--dim); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button.danger { border-color: var(--bad); color: var(--bad); }
+  button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .editor { flex: 1; min-height: 0; display: flex; background: var(--panel); font: 13px/1.6 var(--mono); overflow: hidden; }
+  .gutter { padding: 12px 8px 12px 12px; text-align: right; color: var(--dim); user-select: none; overflow: hidden; min-width: 44px; white-space: pre; }
+  .gutter .err { color: var(--bad); font-weight: 700; }
+  .code { position: relative; flex: 1; min-width: 0; }
+  .code pre, .code textarea { position: absolute; inset: 0; margin: 0; padding: 12px 16px 12px 4px; font: inherit; white-space: pre; overflow: auto; tab-size: 2; border: 0; }
+  .code pre { pointer-events: none; color: var(--text); }
+  .code textarea { background: transparent; color: transparent; caret-color: var(--text); resize: none; outline: none; }
+  .c { color: var(--dim); font-style: italic; } .s { color: var(--code-str); } .v { color: var(--code-var); }
+  .h { color: var(--code-helper); } .k { color: var(--code-kw); font-weight: 600; } .n { color: var(--code-num); }
+  .errbar { padding: 8px 16px; border-top: 1px solid var(--line); color: var(--bad); font: 13px var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  .out { flex: 1; min-height: 0; overflow: auto; padding: 16px; }
+  .empty { color: var(--dim); max-width: 46ch; }
+  h2 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); margin: 20px 0 8px; }
+  h2:first-child { margin-top: 0; }
+  .banner { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; background: var(--panel); }
+  .banner.bad { border-color: var(--bad); } .banner.good { border-color: var(--accent); }
+  .banner ul { margin: 6px 0 0; padding-left: 18px; }
+  .step { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); margin-bottom: 10px; overflow: hidden; }
+  .step.failed { border-color: var(--bad); } .step.confirmed { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+  .step .top { display: flex; gap: 8px; align-items: baseline; padding: 10px 12px 4px; flex-wrap: wrap; }
+  .num { font: 700 13px var(--mono); color: var(--dim); }
+  .badge { font: 600 11px var(--mono); border-radius: 4px; padding: 1px 6px; border: 1px solid currentColor; white-space: nowrap; }
+  .badge.near { color: var(--near); } .badge.evm { color: var(--evm); } .badge.check { color: var(--check); }
+  .badge.atomic { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+  .pill { margin-left: auto; font: 600 11px var(--sans); border-radius: 999px; padding: 2px 9px; background: var(--panel-2); color: var(--dim); white-space: nowrap; }
+  .pill.confirmed { background: var(--accent); color: var(--accent-ink); } .pill.failed { background: var(--bad); color: #fff; }
+  .pill.signed, .pill.broadcast { color: var(--warn); border: 1px solid var(--warn); background: transparent; }
+  .title { padding: 0 12px 6px; font-weight: 600; overflow-wrap: anywhere; }
+  .src { margin: 0 12px 8px; padding: 4px 8px; background: var(--panel-2); border-radius: 4px; font: 12px var(--mono); color: var(--dim); overflow-x: auto; white-space: pre; }
+  dl { margin: 0; padding: 0 12px 10px; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; font: 12px var(--mono); }
+  dt { color: var(--dim); } dd { margin: 0; overflow-wrap: anywhere; }
+  .acts { margin: 0; padding: 0 12px 10px 30px; font: 12px var(--mono); overflow-wrap: anywhere; }
+  .foot { border-top: 1px solid var(--line); padding: 6px 12px; font: 12px var(--mono); overflow-wrap: anywhere; }
+  .foot.err { color: var(--bad); }
+  a { color: var(--evm); }
+  .checks { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  .checks li { padding: 4px 0 4px 54px; text-indent: -54px; overflow-wrap: anywhere; }
+  .lv { display: inline-block; width: 46px; text-indent: 0; font: 700 11px var(--mono); }
+  .lv.ok { color: var(--accent); } .lv.warn { color: var(--warn); } .lv.fail { color: var(--bad); }
+  .note { color: var(--dim); font-size: 13px; }
+  .log { font: 12px/1.6 var(--mono); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; }
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px; max-width: 480px; padding: 20px; }
+  dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+  dialog h3 { margin: 0 0 8px; } dialog .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .stale { opacity: 0.5; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">near<b>cast</b></span>
+  <span class="tag">one NEAR account, scripted across chains</span>
+  <span class="chip" id="acct" title="">connecting…</span>
+  <span class="chip" id="net"></span>
+</header>
+<main>
+  <section class="pane">
+    <div class="bar">
+      <button class="primary" id="planBtn">Plan</button>
+      <select id="examples" aria-label="Load an example" hidden></select>
+      <span class="hint">Plan reads chain state. It signs and sends nothing.</span>
+    </div>
+    <div class="editor">
+      <div class="gutter" id="gutter" aria-hidden="true">1</div>
+      <div class="code">
+        <pre id="hl" aria-hidden="true"></pre>
+        <textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Script"></textarea>
+      </div>
+    </div>
+    <div class="errbar" id="err" hidden></div>
+  </section>
+  <section class="pane">
+    <div class="bar" id="actions"><span class="hint">Nothing planned yet.</span></div>
+    <div class="out" id="out">
+      <p class="empty">Write a script on the left and press <b>Plan</b>. You will see every transaction, on every chain, in order, before anything is signed.</p>
+    </div>
+  </section>
+</main>
+<dialog id="confirm">
+  <h3>Sign and send?</h3>
+  <p id="confirmText"></p>
+  <p class="note">Steps are not atomic with each other. If a later step fails, earlier steps stay done.</p>
+  <div class="row"><button id="cancelRun">Cancel</button><button class="primary" id="confirmRun">Sign and send</button></div>
+</dialog>
+<script>
+const TOKEN = "__TOKEN__";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const src = $("src"), hl = $("hl"), gutter = $("gutter");
+let snap = null;        // last server snapshot for the planned script
+let plannedText = null; // exact editor text that snapshot belongs to
+let errLine = null;
+let timer = null;
+
+async function api(name, body) {
+  const r = await fetch("/api/" + name, { method: "POST", headers: { "content-type": "application/json", "x-nearcast-token": TOKEN }, body: JSON.stringify(body || {}) });
+  const j = await r.json();
+  if (!r.ok) throw Object.assign(new Error(j.error || "request failed"), { line: j.line });
+  return j;
+}
+
+// ---- editor --------------------------------------------------------------------------------
+const KW = /^(load|set|print|assert|call|batch|seq|exec)$/;
+function highlight(text) {
+  return text.split("\n").map((line) => {
+    let out = "", m, first = true;
+    const re = /(#.*$)|("(?:[^"\\]|\\.)*"?)|(\$[A-Za-z_][A-Za-z0-9_]*)|(@[A-Za-z][\w\-]*(?::[A-Za-z][\w\-]*)?)|(--[A-Za-z][\w\-]*)|([A-Za-z0-9_][\w.\-]*(?::[A-Za-z][\w\-]*)?)|(\s+)|(.)/g;
+    while ((m = re.exec(line))) {
+      const t = esc(m[0]);
+      if (m[1]) out += `<span class="c">${t}</span>`;
+      else if (m[2]) out += `<span class="s">${t}</span>`;
+      else if (m[3]) out += `<span class="v">${t}</span>`;
+      else if (m[4]) out += `<span class="h">${t}</span>`;
+      else if (m[5]) out += `<span class="c">${t}</span>`;
+      else if (m[6]) {
+        if (first && (KW.test(m[0]) || m[0].includes(":"))) out += `<span class="k">${t}</span>`;
+        else if (/^\d+(\.\d+)?(e\d+)?(near|yocto|tgas)?$/.test(m[0])) out += `<span class="n">${t}</span>`;
+        else out += t;
+      } else out += t;
+      if (!m[7]) first = false;
+    }
+    return out;
+  }).join("\n") + "\n";
+}
+function paint() {
+  hl.innerHTML = highlight(src.value);
+  const n = src.value.split("\n").length;
+  gutter.innerHTML = Array.from({ length: n }, (_, i) => (i + 1 === errLine ? `<span class="err">${i + 1}</span>` : i + 1)).join("\n");
+  sync();
+  try { localStorage.setItem("nearcast.src", src.value); } catch {}
+  markStale();
+}
+function sync() { hl.scrollTop = src.scrollTop; hl.scrollLeft = src.scrollLeft; gutter.scrollTop = src.scrollTop; }
+src.addEventListener("input", () => { errLine = null; $("err").hidden = true; paint(); });
+src.addEventListener("scroll", sync);
+src.addEventListener("keydown", (e) => {
+  if (e.key === "Tab") { e.preventDefault(); src.setRangeText("  ", src.selectionStart, src.selectionEnd, "end"); paint(); }
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); doPlan(); }
+});
+
+// ---- results -------------------------------------------------------------------------------
+const STATUS = { planned: "not started", signed: "signed, not sent", broadcast: "sent, waiting", confirmed: "confirmed", failed: "failed" };
+const stale = () => snap && plannedText !== src.value;
+function markStale() { $("out").classList.toggle("stale", !!stale()); renderActions(); }
+
+function renderActions() {
+  const bar = $("actions");
+  if (!snap || !snap.view) { bar.innerHTML = '<span class="hint">Nothing planned yet.</span>'; return; }
+  const v = snap.view, b = [];
+  if (stale()) b.push('<span class="hint">The script changed since this plan. Press Plan again.</span>');
+  else if (snap.running) b.push('<button class="danger" id="killBtn">Kill run</button><span class="hint">Running. Kill simulates a crash at the next checkpoint write.</span>');
+  else if (snap.run === "unfinished") b.push('<button class="primary" id="resumeBtn">Resume</button>' + (v.steps.some((s) => s.status === "failed" && s.kind === "near") ? '<button id="retryBtn">Resume and retry failed step</button>' : "") + '<span class="hint">Unfinished run. Resume continues from the checkpoint; it never re-plans.</span>');
+  else if (snap.run === "complete") b.push('<button id="againBtn">Plan a fresh run</button><span class="hint">This script already ran to completion.</span>');
+  else if (v.txCount === 0) b.push('<span class="hint">No transactions in this script.</span>');
+  else b.push(`<button class="primary" id="runBtn" ${v.problems.length ? "disabled" : ""}>Sign and send ${v.txCount} transaction${v.txCount > 1 ? "s" : ""}</button>` + (v.problems.length ? '<span class="hint">Blocked. See below.</span>' : '<span class="hint">Preview only so far.</span>'));
+  bar.innerHTML = b.join("");
+  const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+  on("runBtn", () => { $("confirmText").textContent = `This signs ${v.txCount} transaction(s) as ${v.account} on ${v.chainCount} chain(s). ${v.cost}.`; $("confirm").showModal(); });
+  on("resumeBtn", () => act("resume", { hash: snap.hash }));
+  on("retryBtn", () => act("resume", { hash: snap.hash, retryFailed: true }));
+  on("killBtn", () => act("kill", { hash: snap.hash }, true));
+  on("againBtn", () => doPlan(true));
+}
+
+function stepHtml(s) {
+  const rows = s.rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+  let foot = "";
+  if (s.txHash) foot += `<div class="foot">tx ${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.txHash)}</a>` : esc(s.txHash)}${s.fee ? ` · fee paid ${esc(s.fee)}` : ""}</div>`;
+  if (s.result) foot += `<div class="foot">${esc(s.result)}</div>`;
+  if (s.error) foot += `<div class="foot err">${esc(s.error)}</div>`;
+  return `<article class="step ${s.status}">
+    <div class="top"><span class="num">${s.n}</span><span class="badge ${s.kind}">${esc(s.chain)}</span>${s.atomic ? '<span class="badge atomic" title="All actions succeed or none do">atomic</span>' : ""}<span class="pill ${s.status}">${STATUS[s.status]}</span></div>
+    <div class="title">${esc(s.title)}</div>
+    <div class="src">line ${s.line}: ${esc(s.text)}</div>
+    ${rows ? `<dl>${rows}</dl>` : ""}
+    ${s.actions.length ? `<ol class="acts">${s.actions.map((a) => `<li>${esc(a)}</li>`).join("")}</ol>` : ""}
+    ${foot}</article>`;
+}
+
+function render() {
+  renderActions();
+  const out = $("out");
+  if (!snap || !snap.view) return;
+  const v = snap.view, h = [];
+  if (snap.outcome) h.push(`<div class="banner ${/^All steps/.test(snap.outcome) ? "good" : "bad"}">${esc(snap.outcome)}</div>`);
+  if (snap.run === "none" && v.problems.length) h.push(`<div class="banner bad"><b>Blocked: this plan cannot run yet.</b> Nothing has been signed.<ul>${v.problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></div>`);
+  if (v.prints.length) h.push("<h2>Output</h2>", `<div class="log">${v.prints.map(esc).join("\n")}</div>`);
+  const done = v.steps.filter((s) => s.status === "confirmed").length;
+  h.push(`<h2>${snap.run === "none" ? "Plan" : "Receipt"}: ${v.steps.length} step${v.steps.length === 1 ? "" : "s"}, in this order${snap.run === "none" ? "" : ` (${done} confirmed)`}</h2>`);
+  h.push(v.steps.length ? v.steps.map(stepHtml).join("") : '<p class="note">This script produces no steps.</p>');
+  if (v.checks.length) h.push("<h2>Funding checks</h2>", `<ul class="checks">${v.checks.map((c) => `<li><span class="lv ${c.level}">${c.level.toUpperCase()}</span>${esc(c.description)}</li>`).join("")}</ul>`);
+  if (v.txCount) h.push("<h2>Atomicity and cost</h2>", `<p class="note">${v.txCount} transaction(s) on ${v.chainCount} chain(s). Each transaction is atomic on its own. The steps are <b>not</b> atomic with each other: if a later step fails, earlier steps stay done and nothing is rolled back.<br>${esc(v.cost)}.</p>`);
+  if (snap.log && snap.log.length) h.push("<h2>Run log</h2>", `<div class="log" id="log">${snap.log.map(esc).join("\n")}</div>`);
+  const keep = out.scrollTop;
+  out.innerHTML = h.join("");
+  out.scrollTop = keep;
+  const log = $("log"); if (log) log.scrollTop = log.scrollHeight;
+}
+
+function showError(e) {
+  errLine = e.line || null;
+  $("err").hidden = false;
+  $("err").textContent = e.message;
+  paint();
+}
+function poll() {
+  clearTimeout(timer);
+  if (!snap || !snap.running) return;
+  timer = setTimeout(async () => {
+    try { snap = await api("state", { hash: snap.hash }); render(); } catch {}
+    poll();
+  }, 800);
+}
+async function doPlan(fresh) {
+  const btn = $("planBtn");
+  btn.disabled = true; btn.textContent = "Planning…";
+  errLine = null; $("err").hidden = true;
+  try {
+    const text = src.value;
+    snap = await api("plan", { source: text, fresh: !!fresh });
+    plannedText = text;
+    paint(); render(); poll();
+  } catch (e) { showError(e); }
+  btn.disabled = false; btn.textContent = "Plan";
+}
+async function act(name, body, keep) {
+  try {
+    const r = await api(name, body);
+    if (!keep) snap = r;
+    render(); poll();
+  } catch (e) { showError(e); }
+}
+$("planBtn").onclick = () => doPlan();
+$("cancelRun").onclick = () => $("confirm").close();
+$("confirmRun").onclick = () => { $("confirm").close(); act("run", { hash: snap.hash, fresh: true }); };
+
+(async () => {
+  try {
+    const info = await api("info");
+    $("acct").textContent = info.account; $("acct").title = info.account;
+    $("net").textContent = "NEAR " + info.network;
+    let saved = null;
+    try { saved = localStorage.getItem("nearcast.src"); } catch {}
+    src.value = saved || info.initial;
+    if (info.examples.length) {
+      const sel = $("examples");
+      sel.hidden = false;
+      sel.innerHTML = '<option value="">Load example…</option>' + info.examples.map((e, i) => `<option value="${i}">${esc(e.name)}</option>`).join("");
+      sel.onchange = () => { if (sel.value !== "") { src.value = info.examples[+sel.value].source; sel.value = ""; errLine = null; $("err").hidden = true; paint(); } };
+    }
+  } catch (e) { showError(e); }
+  paint();
+})();
+</script>
+</body>
+</html>

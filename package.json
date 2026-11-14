@@ -1,0 +1,42 @@
+{
+  "name": "nearcast",
+  "version": "0.1.0",
+  "description": "Readable, resumable cross-chain scripts for NEAR: native NEAR actions, tokens, NFTs, staking, meta transactions, and EVM/Bitcoin/Solana through Chain Signatures",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json && npm run build:web",
+    "build:web": "cd web && npm install --no-audit --no-fund && npm run build",
+    "ui": "node bin/nearcast.js ui",
+    "nearcast": "node bin/nearcast.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@near-js/crypto": "^2.5.1",
+    "@near-js/providers": "^2.5.1",
+    "@near-js/transactions": "^2.5.1",
+    "@near-js/types": "^2.5.1",
+    "@near-js/utils": "^2.5.1",
+    "@noble/curves": "1.8.1",
+    "@solana/web3.js": "1.99.0",
+    "bitcoinjs-lib": "6.1.10",
+    "borsh": "1.0.0",
+    "bs58": "6.0.0",
+    "chainsig.js": "^1.1.16",
+    "chevrotain": "^13.2.0",
+    "viem": "^2.57.19"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0"
+  },
+  "bin": {
+    "nearcast": "bin/nearcast.js"
+  }
+}

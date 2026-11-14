@@ -1,0 +1,19 @@
+# One NEAR account pays out USDC on NEAR and on Base, in one reviewable script.
+load token
+load chainsig
+
+# The Base address this NEAR account controls through Chain Signatures.
+set $treasury @chainsig:address(base "treasury")
+print "treasury on Base:" $treasury
+
+# Preflight: nothing is signed unless the treasury can pay for gas and holds the USDC.
+assert @chainsig:balance(base "treasury" ETH) > 0.0001e18 "treasury needs ETH on Base for gas"
+assert @chainsig:balance(base "treasury" USDC) >= 1e6 "treasury needs at least 1 USDC on Base"
+
+# Step on NEAR: 1 USDC to alice. Registers alice with the token first if needed, atomically.
+token:transfer USDC alice.testnet 1
+
+# Step on Base: 1 USDC from the treasury, signed by NEAR's MPC network.
+chainsig:on base "treasury" (
+  exec @token(USDC) "transfer(address,uint256)" 0x000000000000000000000000000000000000dEaD 1e6
+)

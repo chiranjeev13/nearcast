@@ -1,0 +1,13 @@
+# One NEAR account, native coins on three other chains through Chain Signatures.
+load chainsig
+
+print "base:   " @chainsig:address(base "vault")
+print "bitcoin:" @chainsig:address(bitcoin "vault")
+print "solana: " @chainsig:address(solana "vault")
+
+assert @chainsig:balance(bitcoin "vault") > 0 "fund the Bitcoin address first"
+assert @chainsig:balance(solana "vault") > 0 "fund the Solana address first"
+
+chainsig:transfer bitcoin "vault" tb1qnk7n0hf7ykmg5zx8fs3jkxgzr4ph7tz0xxml2z 0.00001
+chainsig:transfer solana "vault" 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM 0.001
+chainsig:transfer base "vault" 0x000000000000000000000000000000000000dEaD 0.00001
