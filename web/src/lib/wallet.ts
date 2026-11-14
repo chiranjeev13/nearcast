@@ -48,6 +48,26 @@ function wagmiConfigFor(network: Network) {
 
 const cache = new Map<Network, Promise<WalletHandle>>();
 
+/**
+ * The selector remembers the connected wallet in localStorage under fixed keys, so testnet and
+ * mainnet would share one session. Mainnet gets its own prefix; testnet keeps the original keys.
+ */
+function storageFor(network: Network) {
+  const k = (key: string) => (network === "mainnet" ? `mainnet:${key}` : key);
+  return {
+    async getItem(key: string) { try { return localStorage.getItem(k(key)); } catch { return null; } },
+    async setItem(key: string, value: string) { try { localStorage.setItem(k(key), value); } catch { /* storage unavailable */ } },
+    async removeItem(key: string) { try { localStorage.removeItem(k(key)); } catch { /* storage unavailable */ } },
+  };
+}
+
+/** Named testnet accounts end in .testnet; a mainnet session must never surface one, and vice versa. */
+export function onNetwork(accountId: string, network: Network): boolean {
+  const implicit = /^[0-9a-f]{64}$/.test(accountId) || /^0x[0-9a-f]{40}$/i.test(accountId);
+  if (implicit) return true;
+  return network === "testnet" ? accountId.endsWith(".testnet") : !accountId.endsWith(".testnet");
+}
+
 /** One selector per network, created on first use. */
 export function getWallet(network: Network): Promise<WalletHandle> {
   let p = cache.get(network);
@@ -55,6 +75,7 @@ export function getWallet(network: Network): Promise<WalletHandle> {
     p = (async () => {
       const selector = await setupWalletSelector({
         network,
+        storage: storageFor(network),
         modules: [
           setupMeteorWallet(),
           setupHereWallet(),
@@ -75,7 +96,9 @@ export function getWallet(network: Network): Promise<WalletHandle> {
 
 export function activeAccount(h: WalletHandle): WalletAccount | null {
   const s = h.selector.store.getState();
-  const a = s.accounts.find((x) => x.active) ?? s.accounts[0];
+  // Some wallets (Meteor) keep one login for both networks: ignore an account from the other one.
+  const accounts = s.accounts.filter((x) => onNetwork(x.accountId, h.network));
+  const a = accounts.find((x) => x.active) ?? accounts[0];
   return a ? { accountId: a.accountId, walletId: s.selectedWalletId } : null;
 }
 
