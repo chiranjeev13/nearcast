@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Lockup, Mark } from "./Logo.tsx";
 
 /**
  * The front page. Split hero: what Nearcast is on the left; on the right a small editor types a
@@ -166,96 +167,142 @@ function HeroDemo() {
 }
 
 const FEATURES = [
-  { icon: "codicon-edit", title: "Write it like a note", body: "Transfers, swaps and contract calls on several chains, in a few readable lines. The editor suggests every command, token and chain." },
-  { icon: "codicon-eye", title: "See it before you sign", body: "Every run starts as a simulation. Balances are checked, gas is estimated and each step is labeled by risk." },
-  { icon: "codicon-debug-continue", title: "Pick up where it stopped", body: "Each step is saved before the next one starts. After a crash, resume and nothing is sent twice." },
+  { title: "Write it like a note", body: "Transfers, swaps and contract calls on several chains, in a few readable lines. The editor suggests every command, token and chain as you type." },
+  { title: "See it before you sign", body: "Every run starts as a simulation. Balances are checked, gas is estimated and each step is labeled by risk before anything is signed." },
+  { title: "Pick up where it stopped", body: "Each step is saved before the next one starts. After a crash, resume from the checkpoint and nothing is sent twice." },
 ];
 
 const CHAINS = ["NEAR", "Ethereum", "Base", "Arbitrum", "Optimism", "Polygon", "BNB Chain", "Bitcoin", "Solana"];
 
+/** Staggered entrance; the resting state is fully visible. */
+const rise = (i: number): React.CSSProperties => ({ animation: `nc-rise 0.7s cubic-bezier(.2,.7,.2,1) ${0.08 * i}s both` });
+
+function PrimaryButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="group h-12 pl-5 pr-4 rounded-lg bg-white text-[#0c0d10] text-[15px] font-medium inline-flex items-center gap-2 cursor-pointer transition hover:bg-[#ecffe6] hover:shadow-[0_0_0_4px_rgba(57,255,20,0.18)]"
+    >
+      {children}
+      <span className="transition-transform group-hover:translate-x-0.5" aria-hidden="true">→</span>
+    </button>
+  );
+}
+
 export function Landing({ onOpen }: { onOpen: () => void }) {
   return (
-    <div className="h-full overflow-y-auto bg-[#0c0d10] text-white" style={{ fontFamily: SANS }}>
-      <div className="mx-auto max-w-[1120px] px-4 sm:px-8">
-        <header className="h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
-            <span className="w-2 h-2 rounded-full" style={{ background: GREEN, boxShadow: `0 0 10px ${GREEN}` }} />
-            nearcast
-          </div>
-          <nav className="flex items-center gap-6 text-[14px] text-[#a9aeb8]">
-            <a href="#how" className="hover:text-white">How it works</a>
-            <button onClick={onOpen} className="hover:text-white cursor-pointer">Editor</button>
-          </nav>
-        </header>
+    <div className="nc-landing h-full overflow-y-auto overflow-x-hidden bg-[#0b0c0f] text-white" style={{ fontFamily: SANS }}>
+      <style>{`
+        @keyframes nc-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+        @keyframes nc-breathe { 0%,100% { opacity: .55; } 50% { opacity: .9; } }
+        @media (prefers-reduced-motion: reduce) { .nc-landing * { animation: none !important; transition: none !important; } }
+      `}</style>
 
-        <section className="grid gap-12 lg:gap-14 lg:grid-cols-[1fr_1.1fr] items-center py-16 lg:py-24">
-          <div className="flex flex-col gap-7 min-w-0">
-            <h1 className="m-0 text-[42px] sm:text-[56px] leading-[1.04] font-semibold tracking-[-0.03em] text-balance">
-              Script every chain from one NEAR account.
+      <header className="sticky top-0 z-20 border-b border-white/[0.06] bg-[#0b0c0f]/70 backdrop-blur-xl">
+        <div className="mx-auto max-w-[1180px] h-16 px-[max(16px,4vw)] flex items-center justify-between">
+          <a href="#" aria-label="nearcast home" className="inline-flex"><Lockup size={19} /></a>
+          <nav className="flex items-center gap-1 sm:gap-2 text-[14px]">
+            <a href="#how" className="hidden sm:inline-flex h-9 px-3 items-center rounded-md text-[#a9aeb8] hover:text-white hover:bg-white/[0.05]">How it works</a>
+            <button onClick={onOpen} className="h-9 px-3.5 rounded-md bg-white/[0.08] hover:bg-white/[0.14] text-white cursor-pointer">Open Editor</button>
+          </nav>
+        </div>
+      </header>
+
+      <main className="relative">
+        {/* Backdrop: a faint grid fading out, and a soft glow behind the demo. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[900px]"
+          style={{
+            backgroundImage: "linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)",
+            backgroundSize: "56px 56px",
+            maskImage: "radial-gradient(ellipse 80% 60% at 50% 20%, #000 30%, transparent 75%)",
+            WebkitMaskImage: "radial-gradient(ellipse 80% 60% at 50% 20%, #000 30%, transparent 75%)",
+          }} />
+        <div aria-hidden="true" className="pointer-events-none absolute right-[-10%] top-[60px] w-[min(820px,90vw)] h-[620px] rounded-full"
+          style={{ background: "radial-gradient(closest-side, rgba(57,255,20,0.13), transparent)", filter: "blur(10px)", animation: "nc-breathe 6s ease-in-out infinite" }} />
+
+        <section className="relative mx-auto max-w-[1180px] px-[max(16px,4vw)] pt-[clamp(48px,9vw,120px)] pb-[clamp(56px,8vw,112px)] grid gap-[clamp(40px,5vw,72px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)] items-center">
+          <div className="flex flex-col gap-[clamp(20px,2.4vw,30px)] min-w-0">
+            <div style={rise(0)} className="self-start inline-flex items-center gap-2 h-8 pl-1.5 pr-3 rounded-full border border-white/[0.09] bg-white/[0.03] text-[13px] text-[#c9cdd4]">
+              <span className="inline-flex"><Mark size={20} /></span>
+              Built on NEAR Chain Signatures
+            </div>
+            <h1 style={{ ...rise(1), fontSize: "clamp(40px, 5.6vw, 72px)" }} className="m-0 leading-[1.03] font-semibold tracking-[-0.035em] text-balance">
+              Script every chain from one{" "}
+              <span className="relative whitespace-nowrap">
+                NEAR account.
+                <span aria-hidden="true" className="absolute left-0 right-[0.4em] -bottom-[0.08em] h-[3px] rounded-full" style={{ background: `linear-gradient(90deg, ${GREEN}, rgba(57,255,20,0))` }} />
+              </span>
             </h1>
-            <p className="m-0 max-w-[520px] text-[17px] leading-[1.6] text-[#a9aeb8]">
+            <p style={{ ...rise(2), fontSize: "clamp(16px, 1.35vw, 19px)" }} className="m-0 max-w-[540px] leading-[1.6] text-[#a9aeb8]">
               Nearcast turns cross-chain work into a short, readable script. Pay on NEAR, move funds on Base, send Bitcoin or
               swap through NEAR Intents, with a dry run before anything is signed.
             </p>
-            <div className="flex flex-wrap gap-3">
-              <button onClick={onOpen} className="h-11 px-5 rounded-md bg-white text-[#0c0d10] text-[15px] font-medium hover:bg-[#e8e8e8] cursor-pointer">
-                Open Editor
-              </button>
-              <a href="#how" className="h-11 px-5 rounded-md border border-[#2c3038] text-[15px] text-white hover:border-[#4a4f5a] inline-flex items-center">
+            <div style={rise(3)} className="flex flex-wrap items-center gap-3">
+              <PrimaryButton onClick={onOpen}>Open Editor</PrimaryButton>
+              <a href="#how" className="h-12 px-5 rounded-lg border border-white/[0.12] text-[15px] text-white hover:border-white/[0.25] hover:bg-white/[0.03] inline-flex items-center transition">
                 How it works
               </a>
             </div>
-            <div className="text-[13px] text-[#6f7580]">Runs on your machine · testnet by default</div>
+            <div style={rise(4)} className="text-[13px] text-[#6f7580]">Your wallet signs every step · testnet by default</div>
           </div>
-          <HeroDemo />
+          <div style={rise(2)} className="min-w-0">
+            <HeroDemo />
+          </div>
         </section>
 
-        <section id="how" className="py-16 border-t border-[#1c1f25] flex flex-col gap-12">
-          <div className="max-w-[640px] flex flex-col gap-3">
-            <h2 className="m-0 text-[28px] font-semibold tracking-[-0.02em]">One account, many chains</h2>
-            <p className="m-0 text-[16px] leading-[1.65] text-[#a9aeb8]">
-              Your NEAR account controls an address on every other chain through NEAR Chain Signatures. No extra keys and no
-              bridges to babysit: Nearcast plans each step, asks NEAR to sign, and tracks it until it lands.
-            </p>
-          </div>
-          <div className="grid gap-10 md:grid-cols-3">
-            {FEATURES.map((f) => (
-              <div key={f.title} className="flex flex-col gap-3">
-                <i className={`codicon ${f.icon}`} style={{ fontSize: 20, color: GREEN }} />
-                <div className="text-[17px] font-medium">{f.title}</div>
-                <p className="m-0 text-[15px] leading-[1.6] text-[#a9aeb8]">{f.body}</p>
-              </div>
-            ))}
-          </div>
-          <div className="flex flex-col gap-3">
-            <div className="text-[13px] text-[#6f7580]">Works on</div>
-            <div className="text-[17px] leading-[1.9] text-white">
-              {CHAINS.map((c, i) => (
-                <span key={c}>
-                  {c}
-                  {i < CHAINS.length - 1 && <span className="text-[#3a3f48] mx-2.5">/</span>}
-                </span>
+        <section id="how" className="relative border-t border-white/[0.06]">
+          <div className="mx-auto max-w-[1180px] px-[max(16px,4vw)] py-[clamp(56px,8vw,104px)] flex flex-col gap-[clamp(36px,5vw,60px)]">
+            <div className="max-w-[660px] flex flex-col gap-4">
+              <h2 className="m-0 font-semibold tracking-[-0.025em] text-balance" style={{ fontSize: "clamp(28px, 3.2vw, 40px)" }}>One account, many chains</h2>
+              <p className="m-0 text-[clamp(15px,1.25vw,17px)] leading-[1.65] text-[#a9aeb8]">
+                Your NEAR account controls an address on every other chain through NEAR Chain Signatures. No extra keys and no
+                bridges to babysit: Nearcast plans each step, your wallet approves it, and the run is tracked until it lands.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {FEATURES.map((f) => (
+                <div key={f.title} className="group flex flex-col gap-3 p-6 rounded-xl border border-white/[0.07] bg-white/[0.02] transition hover:border-[rgba(57,255,20,0.35)] hover:bg-white/[0.035]">
+                  <span className="inline-flex transition-transform group-hover:-translate-y-0.5"><Mark size={28} /></span>
+                  <div className="text-[17px] font-medium">{f.title}</div>
+                  <p className="m-0 text-[15px] leading-[1.6] text-[#a9aeb8]">{f.body}</p>
+                </div>
               ))}
-              <span className="text-[#a9aeb8]"> and swaps through NEAR Intents</span>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div className="text-[13px] text-[#6f7580]">Works on</div>
+              <div className="flex flex-wrap gap-2">
+                {CHAINS.map((c) => (
+                  <span key={c} className="h-9 px-3.5 inline-flex items-center rounded-full border border-white/[0.08] text-[14px] text-[#d9dce1]">{c}</span>
+                ))}
+                <span className="h-9 px-3.5 inline-flex items-center rounded-full border border-[rgba(57,255,20,0.45)] text-[14px]" style={{ color: GREEN }}>+ NEAR Intents swaps</span>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="py-16 border-t border-[#1c1f25] flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div className="flex flex-col gap-2">
-            <div className="text-[24px] font-semibold tracking-[-0.02em]">Try the editor</div>
-            <div className="text-[15px] text-[#a9aeb8]">Examples included. Nothing is signed until you confirm.</div>
+        <section className="relative border-t border-white/[0.06]">
+          <div className="mx-auto max-w-[1180px] px-[max(16px,4vw)] py-[clamp(48px,7vw,88px)]">
+            <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#101216] px-[clamp(24px,4vw,56px)] py-[clamp(32px,4.5vw,56px)] flex flex-col md:flex-row md:items-center justify-between gap-8">
+              <div aria-hidden="true" className="absolute -right-24 -top-24 w-[380px] h-[380px] rounded-full" style={{ background: "radial-gradient(closest-side, rgba(57,255,20,0.14), transparent)" }} />
+              <div className="relative flex items-center gap-5">
+                <span className="hidden sm:inline-flex"><Mark size={64} /></span>
+                <div className="flex flex-col gap-2">
+                  <div className="font-semibold tracking-[-0.02em]" style={{ fontSize: "clamp(22px, 2.4vw, 30px)" }}>Try it with the examples</div>
+                  <div className="text-[15px] text-[#a9aeb8]">Connect a wallet, simulate, and nothing is signed until you confirm.</div>
+                </div>
+              </div>
+              <div className="relative"><PrimaryButton onClick={onOpen}>Open Editor</PrimaryButton></div>
+            </div>
           </div>
-          <button onClick={onOpen} className="h-11 px-5 rounded-md bg-white text-[#0c0d10] text-[15px] font-medium hover:bg-[#e8e8e8] cursor-pointer self-start sm:self-auto">
-            Open Editor
-          </button>
         </section>
+      </main>
 
-        <footer className="py-8 border-t border-[#1c1f25] text-[13px] text-[#6f7580] flex flex-wrap justify-between gap-2">
-          <span>nearcast</span>
+      <footer className="border-t border-white/[0.06]">
+        <div className="mx-auto max-w-[1180px] px-[max(16px,4vw)] py-8 flex flex-wrap items-center justify-between gap-4 text-[13px] text-[#6f7580]">
+          <Lockup size={15} ink="#c9cdd4" />
           <span>Built on NEAR Chain Signatures and NEAR Intents</span>
-        </footer>
-      </div>
+        </div>
+      </footer>
     </div>
   );
 }

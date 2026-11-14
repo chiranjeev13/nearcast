@@ -1,3 +1,5 @@
+import { Mark } from "./Logo.tsx";
+
 export type View = "explorer" | "docs" | "run";
 
 const ITEMS: { id: View; icon: string; title: string }[] = [
@@ -15,6 +17,9 @@ export function ActivityBar({ view, open, onSelect, badges }: {
 }) {
   return (
     <nav className="w-12 shrink-0 flex flex-col bg-panel border-r border-line">
+      <a href="#" title="nearcast home" aria-label="nearcast home" className="h-12 flex items-center justify-center border-b border-line hover:bg-white/5">
+        <Mark size={26} />
+      </a>
       {ITEMS.map((it) => {
         const active = open && view === it.id;
         const badge = badges[it.id];

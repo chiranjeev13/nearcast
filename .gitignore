@@ -3,3 +3,4 @@ dist
 .nearcast
 *.log
 scripts/
+.vercel
