@@ -1,0 +1,25 @@
+# Testnet yield desk: put 3 NEAR to work three ways, then exit one position instantly.
+# Simulate first; nothing is signed until you review.
+load stake
+load token
+
+set $validator kiln.pool.f863973.m0
+set $linear linear-protocol.testnet
+set $meta meta-v2.pool.testnet
+
+print "validator stake:" @stake:staked($validator)
+print "LiNEAR stake:   " @stake:staked($linear)
+print "Meta Pool stake:" @stake:staked($meta)
+
+assert @balance > 3.5near "need 3.5 NEAR: 3 to stake, the rest for gas"
+assert @stake:staked($validator) >= 0 "validator pool is not responding"
+
+# 1. Classic staking with a validator: earns rewards, ~4 epochs to unstake.
+stake:deposit $validator 1
+
+# 2. Liquid staking: same rewards, and you get LiNEAR, a token you can move or use elsewhere.
+stake:deposit $linear 1
+
+# 3. Instant exit: stake with Meta Pool, then swap 0.3 stNEAR back to NEAR right away (~0.3% fee).
+stake:deposit $meta 1
+call $meta liquid_unstake {"st_near_to_burn": "300000000000000000000000", "min_expected_near": "950000000000000000000000"} --gas 100tgas
