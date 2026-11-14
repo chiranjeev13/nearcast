@@ -108,6 +108,25 @@ export function watchAccount(h: WalletHandle, cb: (a: WalletAccount | null) => v
   return () => sub.unsubscribe();
 }
 
+/**
+ * Open the wallet picker. If the selector still holds a wallet signed in on the other network
+ * (Meteor keeps one login for both), the picker would just say "connected": sign in to that
+ * wallet again on this network instead.
+ */
+export async function connect(h: WalletHandle): Promise<void> {
+  const s = h.selector.store.getState();
+  if (s.selectedWalletId && !activeAccount(h)) {
+    try {
+      const w: any = await h.selector.wallet();
+      await w.signIn({ contractId: "", methodNames: [] });
+      return;
+    } catch {
+      // Fall through to the picker.
+    }
+  }
+  h.modal.show();
+}
+
 export async function disconnect(h: WalletHandle): Promise<void> {
   const w = await h.selector.wallet();
   await w.signOut();

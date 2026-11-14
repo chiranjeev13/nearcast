@@ -16,7 +16,7 @@ import { snippetFor } from "./lib/completions.ts";
 import { useDocuments } from "./lib/documents.ts";
 import { session, store } from "./lib/storage.ts";
 import { connectEvm, currentEvm, hasEvmWallet, sendEvm, watchEvm } from "./lib/evmWallet.ts";
-import { disconnect, getWallet, sendWithWallet, splitsBatches, watchAccount, type WalletAccount, type WalletHandle } from "./lib/wallet.ts";
+import { connect, disconnect, getWallet, sendWithWallet, splitsBatches, watchAccount, type WalletAccount, type WalletHandle } from "./lib/wallet.ts";
 
 interface Pending {
   id: string;
@@ -455,7 +455,7 @@ export function App() {
                   run={{
                     info, network, setNetwork, signer, setSigner, keyAccount, setKeyAccount,
                     walletAccount: walletAcct?.accountId ?? null, walletLoading,
-                    onConnect: () => wallet?.modal.show(),
+                    onConnect: () => { if (wallet) connect(wallet).catch((e) => setNotice(`wallet: ${e.message}`)); },
                     onDisconnect: () => wallet && disconnect(wallet).catch((e) => setNotice(e.message)),
                     evmAccount: evmAcct, evmAvailable: hasEvmWallet(),
                     onConnectEvm: () => connectEvm().then(setEvmAcct, (e) => setNotice(`evm wallet: ${e.message}`)),
