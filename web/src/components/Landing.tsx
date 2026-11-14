@@ -231,7 +231,7 @@ export function Landing({ onOpen }: { onOpen: () => void }) {
             </h1>
             <p style={{ ...rise(2), fontSize: "clamp(16px, 1.35vw, 19px)" }} className="m-0 max-w-[540px] leading-[1.6] text-[#a9aeb8]">
               Write what should happen onchain in a few readable lines. Nearcast simulates every step, then runs it from
-              your NEAR wallet, on NEAR and on Base, Solana and Bitcoin.
+              your NEAR wallet, on NEAR and on any chain NEAR can sign for.
             </p>
             <div style={rise(3)} className="flex flex-wrap items-center gap-3">
               <PrimaryButton onClick={onOpen}>Open Editor</PrimaryButton>
@@ -250,8 +250,8 @@ export function Landing({ onOpen }: { onOpen: () => void }) {
             <div className="max-w-[660px] flex flex-col gap-4">
               <h2 className="m-0 font-semibold tracking-[-0.025em] text-balance" style={{ fontSize: "clamp(28px, 3.2vw, 40px)" }}>One script, every chain</h2>
               <p className="m-0 text-[clamp(15px,1.25vw,17px)] leading-[1.65] text-[#a9aeb8]">
-                NEAR signs for other chains through Chain Signatures and moves assets through NEAR Intents, so a NEAR script
-                can pay on Base, Solana and Bitcoin. No extra keys, no bridges to babysit.
+                NEAR signs for other chains through Chain Signatures and moves assets through NEAR Intents, so one NEAR script
+                can act on EVM chains, Bitcoin and Solana. No extra keys, no bridges to babysit.
               </p>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
